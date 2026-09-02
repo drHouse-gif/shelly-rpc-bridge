@@ -1,0 +1,9 @@
+{
+  "name": "shelly-toolkit-frontend-checks",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "check": "node --check custom_components/shelly_toolkit/frontend/shelly-toolkit-panel.js",
+    "test": "node --test tests/frontend.test.mjs"
+  }
+}
