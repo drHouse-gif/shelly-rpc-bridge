@@ -4,12 +4,12 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any
 
 from homeassistant.components import frontend, panel_custom
 from homeassistant.components.http import StaticPathConfig
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant
+from homeassistant.helpers import config_validation as cv
 from homeassistant.helpers.typing import ConfigType
 
 from .backup import BackupEngine, BackupRepository
@@ -20,6 +20,7 @@ from .const import (
     DATA_REMOTE_SERVER,
     DOMAIN,
     PANEL_URL,
+    PLATFORMS,
     STATIC_URL,
 )
 from .coordinator import ToolkitCoordinator
@@ -34,6 +35,8 @@ from .services import async_setup_services
 from .websocket_api import async_register_websocket_commands
 
 type ShellyToolkitConfigEntry = ConfigEntry["ToolkitRuntime"]
+
+CONFIG_SCHEMA = cv.config_entry_only_config_schema(DOMAIN)
 
 
 @dataclass(slots=True)
@@ -89,6 +92,7 @@ async def async_setup_entry(
     )
     entry.runtime_data = runtime
     await coordinator.async_config_entry_first_refresh()
+    await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)
     await _async_register_panel(hass)
     return True
 
@@ -96,7 +100,9 @@ async def async_setup_entry(
 async def async_unload_entry(
     hass: HomeAssistant, entry: ShellyToolkitConfigEntry
 ) -> bool:
-    """Unload sockets and sidebar panel cleanly."""
+    """Unload entity platforms, sockets, and sidebar panel cleanly."""
+    if not await hass.config_entries.async_unload_platforms(entry, PLATFORMS):
+        return False
     await entry.runtime_data.coordinator.async_shutdown()
     await entry.runtime_data.manager.async_close()
     server: RemoteServer = hass.data[DOMAIN][DATA_REMOTE_SERVER]
