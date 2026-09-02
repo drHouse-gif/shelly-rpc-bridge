@@ -4,6 +4,8 @@ from __future__ import annotations
 
 from typing import Final
 
+from homeassistant.const import Platform
+
 DOMAIN: Final = "shelly_toolkit"
 NAME: Final = "Shelly Toolkit for Home Assistant"
 VERSION: Final = "0.4.0"
@@ -35,6 +37,14 @@ PANEL_URL: Final = "shelly-toolkit"
 STATIC_URL: Final = "/shelly_toolkit_static"
 REMOTE_WS_PATH: Final = "/api/shelly_toolkit/remote"
 HA_EVENT: Final = "shelly_toolkit_event"
+
+PLATFORMS: Final = [
+    Platform.BINARY_SENSOR,
+    Platform.COVER,
+    Platform.LIGHT,
+    Platform.SENSOR,
+    Platform.SWITCH,
+]
 
 DISCLAIMER: Final = (
     "Independent community project. Not affiliated with or endorsed by Shelly Group."
