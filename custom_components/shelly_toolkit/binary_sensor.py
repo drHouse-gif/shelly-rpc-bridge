@@ -48,6 +48,7 @@ async def async_setup_entry(
             async_add_entities(entities)
 
     discover()
+    entry.async_on_unload(runtime.manager.async_add_component_listener(lambda _device: discover()))
     entry.async_on_unload(runtime.coordinator.async_add_listener(discover))
     entry.async_on_unload(runtime.events.subscribe(lambda _event: discover()))
 

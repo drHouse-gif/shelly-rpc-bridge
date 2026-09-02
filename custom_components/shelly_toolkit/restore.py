@@ -269,7 +269,7 @@ class RestoreEngine:
                 params=raw.get("params"),
                 reason=raw.get("reason"),
             )
-            if item.status is not RestoreStatus.READY or item.method is None:
+            if item.status is not RestoreStatus.READY or item.method is None or item.params is None:
                 results.append(item)
                 continue
             try:

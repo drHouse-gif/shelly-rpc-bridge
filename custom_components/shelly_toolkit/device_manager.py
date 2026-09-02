@@ -8,6 +8,7 @@ import logging
 import secrets
 import socket
 import time
+from collections.abc import Callable
 from copy import deepcopy
 from typing import Any
 
@@ -98,6 +99,7 @@ class DeviceManager:
         self.transports: dict[str, RpcTransport] = {}
         self._local_ids: set[str] = set()
         self._remote_ids: set[str] = set()
+        self._component_listeners: set[Callable[[ToolkitDevice], None]] = set()
 
     async def async_start(self) -> None:
         """Create transports and make the manager available immediately."""
@@ -132,9 +134,7 @@ class DeviceManager:
         if not device_id.startswith("local:"):
             device_id = f"local:{device_id}"
         transport = self._transport_from_local(config)
-        transport.set_event_callback(
-            lambda frame, target=device_id: self.async_handle_frame(target, frame)
-        )
+        transport.set_event_callback(self._event_callback(device_id))
         self.transports[device_id] = transport
         self.devices[device_id] = ToolkitDevice(
             id=device_id,
@@ -229,12 +229,36 @@ class DeviceManager:
             device.record_rpc_success()
             device.mark_seen()
             self._sync_registry(device)
+            self._notify_components(device)
         except RpcError as err:
             device.record_rpc_failure()
             device.online = False
             device.last_error = type(err).__name__
             LOGGER.debug("Could not refresh %s: %s", device_id, err)
         return device
+
+    def async_add_component_listener(
+        self, callback: Callable[[ToolkitDevice], None]
+    ) -> Callable[[], None]:
+        """Subscribe to component discovery and replay current devices."""
+        self._component_listeners.add(callback)
+        for device in self.devices.values():
+            if device.status or device.capabilities.components:
+                callback(device)
+        return lambda: self._component_listeners.discard(callback)
+
+    def _notify_components(self, device: ToolkitDevice) -> None:
+        """Notify entity platforms after a component snapshot or push update."""
+        for callback in tuple(self._component_listeners):
+            callback(device)
+
+    def _event_callback(self, device_id: str) -> EventCallback:
+        """Build a typed push callback bound to one Toolkit target."""
+
+        async def handle(frame: dict[str, Any]) -> None:
+            await self.async_handle_frame(device_id, frame)
+
+        return handle
 
     async def async_call(
         self,
@@ -278,6 +302,8 @@ class DeviceManager:
                         current = device.config.setdefault(key, {})
                         if isinstance(current, dict):
                             current.update(value)
+        if method in {"NotifyStatus", "NotifyFullStatus", "NotifyConfig", "NotifyFullConfig"}:
+            self._notify_components(device)
         for event in self.events.add_frame(device_id, frame):
             self.hass.bus.async_fire(HA_EVENT, event.as_dict())
 
@@ -290,9 +316,7 @@ class DeviceManager:
         """Register a newly authenticated remote target."""
         device_id = f"remote:{raw_device_id}"
         transport.device_id = device_id
-        transport.set_event_callback(
-            lambda frame, target=device_id: self.async_handle_frame(target, frame)
-        )
+        transport.set_event_callback(self._event_callback(device_id))
         self.transports[device_id] = transport
         device = self.devices.setdefault(
             device_id,
