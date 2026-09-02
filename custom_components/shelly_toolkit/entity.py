@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from collections.abc import Iterator
+from collections.abc import Callable, Iterator
 from dataclasses import dataclass
 from typing import Any
 
@@ -30,7 +30,7 @@ class ToolkitComponent:
     def component_id(self) -> int:
         try:
             return int(self.key.split(":", 1)[1])
-        except IndexError, ValueError:
+        except (IndexError, ValueError):
             return 0
 
 
@@ -101,8 +101,8 @@ class ToolkitEntity(Entity):
         safe_device = device.id.replace(":", "_")
         safe_component = component.key.replace(":", "_")
         self._attr_unique_id = f"{safe_device}_{safe_component}_{suffix}"
-        self._remove_event_listener = None
-        self._remove_coordinator_listener = None
+        self._remove_event_listener: Callable[[], None] | None = None
+        self._remove_coordinator_listener: Callable[[], None] | None = None
 
     @property
     def device(self) -> ToolkitDevice:
