@@ -11,7 +11,7 @@ from homeassistant.core import callback
 from .const import CONF_LOCAL_DEVICES, CONF_REMOTE_CREDENTIALS, DOMAIN
 
 
-class ShellyToolkitConfigFlow(ConfigFlow, domain=DOMAIN):
+class ShellyToolkitConfigFlow(ConfigFlow, domain=DOMAIN):  # type: ignore[call-arg]
     """Create one Toolkit hub; targets are added from its panel."""
 
     VERSION = 1
