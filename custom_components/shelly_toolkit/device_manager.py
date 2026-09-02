@@ -4,8 +4,10 @@ from __future__ import annotations
 
 import asyncio
 from copy import deepcopy
+import ipaddress
 import logging
 import secrets
+import socket
 import time
 from typing import Any
 
@@ -35,6 +37,7 @@ from .rpc import (
     HttpRpcTransport,
     RpcAuthError,
     RpcError,
+    RpcProtocolError,
     RpcTransport,
     RpcUnavailableError,
     WebSocketRpcTransport,
@@ -57,7 +60,7 @@ class OfficialShellyTransport:
 
     async def async_call(
         self, method: str, params: dict[str, Any] | None = None
-    ) -> dict[str, Any]:
+    ) -> Any:
         """Delegate to aioshelly through Home Assistant's coordinator."""
         try:
             result = await self._coordinator.device.call_rpc(method, params or {})
@@ -67,8 +70,6 @@ class OfficialShellyTransport:
             if "auth" in type(err).__name__.lower():
                 raise RpcAuthError("Official Shelly authentication failed") from err
             raise RpcUnavailableError(f"Official Shelly RPC failed: {err}") from err
-        if not isinstance(result, dict):
-            raise RpcUnavailableError("Official Shelly returned a non-object result")
         self.connected = True
         self.last_error = None
         return result
@@ -218,14 +219,18 @@ class DeviceManager:
                 transport.async_call("Shelly.GetStatus"),
                 transport.async_call("Shelly.GetConfig"),
             )
+            if not all(isinstance(item, dict) for item in (info, status, config)):
+                raise RpcProtocolError("Shelly identity, status, and config must be objects")
             device.info = info
             device.status = status
             device.config = config
             if not device.capabilities.components:
                 device.capabilities = await async_discover_capabilities(transport)
+            device.record_rpc_success()
             device.mark_seen()
             self._sync_registry(device)
         except RpcError as err:
+            device.record_rpc_failure()
             device.online = False
             device.last_error = type(err).__name__
             LOGGER.debug("Could not refresh %s: %s", device_id, err)
@@ -236,17 +241,19 @@ class DeviceManager:
         device_id: str,
         method: str,
         params: dict[str, Any] | None = None,
-    ) -> dict[str, Any]:
+    ) -> Any:
         """Execute one RPC call and update connection state."""
         device = self.get_device(device_id)
         transport = self.get_transport(device_id)
         try:
             result = await transport.async_call(method, params)
         except RpcError as err:
+            device.record_rpc_failure()
             device.last_error = type(err).__name__
             if isinstance(err, RpcUnavailableError):
                 device.online = False
             raise
+        device.record_rpc_success()
         device.mark_seen()
         return result
 
@@ -329,9 +336,14 @@ class DeviceManager:
         """Validate a target is Shelly Gen2+ before persisting it."""
         candidate = dict(config)
         candidate["id"] = f"local:{secrets.token_hex(8)}"
+        await _async_validate_local_target(
+            str(candidate[CONF_HOST]), int(candidate.get(CONF_PORT, DEFAULT_PORT))
+        )
         transport = self._transport_from_local(candidate)
         try:
             info = await transport.async_call("Shelly.GetDeviceInfo")
+            if not isinstance(info, dict):
+                raise RpcUnavailableError("Target returned invalid device information")
             if not isinstance(info.get("gen"), int) or int(info["gen"]) < 2:
                 raise RpcUnavailableError("Target is not a Shelly Gen2+ device")
         finally:
@@ -418,3 +430,30 @@ class DeviceManager:
         data = deepcopy(dict(self.entry.data))
         data[key] = value
         self.hass.config_entries.async_update_entry(self.entry, data=data)
+
+
+async def _async_validate_local_target(host: str, port: int) -> None:
+    """Resolve a user-added target and reject SSRF-sensitive address classes."""
+    try:
+        addresses = await asyncio.get_running_loop().getaddrinfo(
+            host, port, type=socket.SOCK_STREAM
+        )
+    except OSError as err:
+        raise RpcUnavailableError(f"Could not resolve local target: {host}") from err
+    parsed = {ipaddress.ip_address(item[4][0]) for item in addresses}
+    if not parsed or any(not _is_safe_local_address(address) for address in parsed):
+        raise RpcUnavailableError(
+            "Local targets must resolve only to private, non-loopback addresses"
+        )
+
+
+def _is_safe_local_address(address: ipaddress.IPv4Address | ipaddress.IPv6Address) -> bool:
+    """Return whether an address is suitable for an explicitly added LAN device."""
+    return (
+        address.is_private
+        and not address.is_loopback
+        and not address.is_link_local
+        and not address.is_multicast
+        and not address.is_reserved
+        and not address.is_unspecified
+    )

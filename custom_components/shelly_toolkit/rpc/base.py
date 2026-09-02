@@ -12,6 +12,11 @@ EventCallback = Callable[[dict[str, Any]], Awaitable[None] | None]
 METHOD_RE = re.compile(r"^[A-Za-z][A-Za-z0-9_]*\.[A-Za-z][A-Za-z0-9_]*$")
 
 
+def format_url_host(host: str) -> str:
+    """Wrap a literal IPv6 host for URL use without changing DNS names."""
+    return f"[{host}]" if ":" in host and not host.startswith("[") else host
+
+
 def validate_method(method: str) -> str:
     """Validate an RPC method name."""
     if not METHOD_RE.fullmatch(method):
@@ -30,7 +35,7 @@ class RpcTransport(Protocol):
 
     async def async_call(
         self, method: str, params: dict[str, Any] | None = None
-    ) -> dict[str, Any]:
+    ) -> Any:
         """Call an RPC method."""
 
     async def async_close(self) -> None:
@@ -38,4 +43,3 @@ class RpcTransport(Protocol):
 
     def set_event_callback(self, callback: EventCallback | None) -> None:
         """Set notification callback."""
-

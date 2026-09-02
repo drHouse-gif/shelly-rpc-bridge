@@ -34,4 +34,3 @@ class ToolkitCoordinator(DataUpdateCoordinator[list[dict[str, Any]]]):
     async def _async_update_data(self) -> list[dict[str, Any]]:
         """Refresh targets without failing the config entry for one offline device."""
         return await self.manager.async_refresh_all()
-

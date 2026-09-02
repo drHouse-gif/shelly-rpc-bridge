@@ -54,6 +54,14 @@ class ToolkitDevice:
     status: dict[str, Any] = field(default_factory=dict)
     config: dict[str, Any] = field(default_factory=dict)
     capabilities: CapabilitySet = field(default_factory=CapabilitySet)
+    rpc_metrics: dict[str, Any] = field(
+        default_factory=lambda: {
+            "calls": 0,
+            "failures": 0,
+            "consecutive_failures": 0,
+            "recent_failures": [],
+        }
+    )
     last_error: str | None = None
     registry_device_id: str | None = None
 
@@ -62,6 +70,27 @@ class ToolkitDevice:
         self.online = True
         self.last_seen = time.time()
         self.last_error = None
+
+    def record_rpc_success(self) -> None:
+        """Record a successful logical RPC cycle."""
+        self.rpc_metrics["calls"] += 1
+        self.rpc_metrics["consecutive_failures"] = 0
+        self.rpc_metrics["last_success"] = time.time()
+
+    def record_rpc_failure(self) -> None:
+        """Record a failure and retain only a 15-minute instability window."""
+        now = time.time()
+        self.rpc_metrics["calls"] += 1
+        self.rpc_metrics["failures"] += 1
+        self.rpc_metrics["consecutive_failures"] += 1
+        recent = [
+            value
+            for value in self.rpc_metrics.get("recent_failures", [])
+            if isinstance(value, (int, float)) and value >= now - 900
+        ]
+        recent.append(now)
+        self.rpc_metrics["recent_failures"] = recent[-20:]
+        self.rpc_metrics["last_failure"] = now
 
     @property
     def model(self) -> str | None:
@@ -87,11 +116,7 @@ class ToolkitDevice:
         """Return panel-safe representation."""
         sys_status = self.status.get("sys", {})
         wifi_status = self.status.get("wifi", {})
-        temperature = None
-        if isinstance(sys_status, dict):
-            temperature = sys_status.get("temperature")
-        if isinstance(temperature, dict):
-            temperature = temperature.get("tC")
+        temperature = max(_temperatures(self.status), default=None)
         return {
             "id": self.id,
             "name": self.name,
@@ -107,10 +132,27 @@ class ToolkitDevice:
             "rssi": wifi_status.get("rssi") if isinstance(wifi_status, dict) else None,
             "temperature": temperature,
             "rpc_available": self.online and self.last_error is None,
+            "rpc_metrics": self.rpc_metrics,
             "last_error": self.last_error,
             "capabilities": self.capabilities.as_dict(),
             "registry_device_id": self.registry_device_id,
         }
+
+
+def _temperatures(status: dict[str, Any]) -> list[float]:
+    """Extract real Celsius values from system and component status objects."""
+    values: list[float] = []
+    for key, raw in status.items():
+        if not isinstance(raw, dict):
+            continue
+        temperature = raw.get("temperature")
+        if isinstance(temperature, dict):
+            temperature = temperature.get("tC")
+        if temperature is None and key.startswith("temperature:"):
+            temperature = raw.get("tC")
+        if isinstance(temperature, (int, float)):
+            values.append(float(temperature))
+    return values
 
 
 @dataclass(slots=True, frozen=True)

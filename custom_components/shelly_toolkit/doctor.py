@@ -10,6 +10,7 @@ from homeassistant.helpers import issue_registry as ir
 
 from .const import DOMAIN
 from .device_manager import DeviceManager
+from .models import _temperatures
 from .rpc import RpcError
 
 
@@ -38,6 +39,8 @@ class ShellyDoctor:
 
     def __init__(self, manager: DeviceManager) -> None:
         self.manager = manager
+        self._active_issues: dict[str, set[str]] = {}
+        self._results: dict[str, dict[str, Any]] = {}
 
     async def async_run(self, device_id: str) -> dict[str, Any]:
         device = await self.manager.async_refresh_device(device_id)
@@ -49,9 +52,22 @@ class ShellyDoctor:
                 Finding("connectivity", severity, title, evidence=device.last_error)
             )
             self._sync_repairs(device_id, findings)
-            return self._result(device, findings)
+            result = self._result(device, findings)
+            self._results[device_id] = result
+            return result
         findings.append(Finding("connectivity", Severity.INFO, "Connectivity OK"))
         findings.append(Finding("rpc", Severity.INFO, "RPC OK"))
+        recent_failures = device.rpc_metrics.get("recent_failures", [])
+        if isinstance(recent_failures, list) and len(recent_failures) >= 3:
+            findings.append(
+                Finding(
+                    "rpc_stability",
+                    Severity.WARNING,
+                    "Unstable RPC connection",
+                    len(recent_failures),
+                    "RPC failures during the last 15 minutes",
+                )
+            )
 
         wifi = device.status.get("wifi")
         if isinstance(wifi, dict) and isinstance(wifi.get("rssi"), (int, float)):
@@ -59,17 +75,20 @@ class ShellyDoctor:
             severity = Severity.ERROR if rssi <= -85 else Severity.WARNING if rssi <= -70 else Severity.INFO
             findings.append(Finding("wifi", severity, "Wi-Fi signal", rssi, "wifi.rssi"))
 
+        for index, value in enumerate(_temperatures(device.status)):
+            severity = Severity.ERROR if value >= 85 else Severity.WARNING if value >= 70 else Severity.INFO
+            findings.append(
+                Finding(
+                    f"temperature_{index}",
+                    severity,
+                    "Device temperature",
+                    value,
+                    "component status temperature.tC",
+                )
+            )
+
         sys_status = device.status.get("sys")
         if isinstance(sys_status, dict):
-            temperature = sys_status.get("temperature")
-            if isinstance(temperature, dict):
-                temperature = temperature.get("tC")
-            if isinstance(temperature, (int, float)):
-                value = float(temperature)
-                severity = Severity.ERROR if value >= 85 else Severity.WARNING if value >= 70 else Severity.INFO
-                findings.append(
-                    Finding("temperature", severity, "Device temperature", value, "sys.temperature")
-                )
             for free_key, total_key, label in (
                 ("ram_free", "ram_size", "Free memory"),
                 ("fs_free", "fs_size", "Free filesystem"),
@@ -108,8 +127,13 @@ class ShellyDoctor:
         if "Script.List" in device.capabilities.methods:
             findings.extend(await self._script_findings(device_id))
         result = self._result(device, findings)
+        self._results[device_id] = result
         self._sync_repairs(device_id, findings)
         return result
+
+    def latest(self) -> list[dict[str, Any]]:
+        """Return the latest cached report for each explicitly diagnosed device."""
+        return list(self._results.values())
 
     async def _script_findings(self, device_id: str) -> list[Finding]:
         findings: list[Finding] = []
@@ -117,6 +141,15 @@ class ShellyDoctor:
             result = await self.manager.async_call(device_id, "Script.List")
         except RpcError as err:
             return [Finding("scripts", Severity.WARNING, "Could not inspect scripts", evidence=type(err).__name__)]
+        if not isinstance(result, dict):
+            return [
+                Finding(
+                    "scripts",
+                    Severity.WARNING,
+                    "Could not inspect scripts",
+                    evidence="invalid Script.List response",
+                )
+            ]
         scripts = result.get("scripts", [])
         if not isinstance(scripts, list):
             return findings
@@ -134,6 +167,16 @@ class ShellyDoctor:
                         Severity.WARNING,
                         f"Script {item['id']} status unavailable",
                         evidence=type(err).__name__,
+                    )
+                )
+                continue
+            if not isinstance(status, dict):
+                findings.append(
+                    Finding(
+                        f"script_{item['id']}",
+                        Severity.WARNING,
+                        f"Script {item['id']} status unavailable",
+                        evidence="invalid Script.GetStatus response",
                     )
                 )
                 continue
@@ -166,9 +209,11 @@ class ShellyDoctor:
         }
 
     def _sync_repairs(self, device_id: str, findings: list[Finding]) -> None:
+        current: set[str] = set()
         for finding in findings:
             issue_id = f"doctor_{device_id}_{finding.key}"
             if finding.severity is Severity.ERROR:
+                current.add(issue_id)
                 ir.async_create_issue(
                     self.manager.hass,
                     DOMAIN,
@@ -184,6 +229,9 @@ class ShellyDoctor:
                 )
             else:
                 ir.async_delete_issue(self.manager.hass, DOMAIN, issue_id)
+        for stale_issue in self._active_issues.get(device_id, set()) - current:
+            ir.async_delete_issue(self.manager.hass, DOMAIN, stale_issue)
+        self._active_issues[device_id] = current
 
 
 def _component_error_findings(status: dict[str, Any]) -> list[Finding]:

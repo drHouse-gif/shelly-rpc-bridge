@@ -6,9 +6,10 @@ from dataclasses import asdict, dataclass
 from enum import StrEnum
 from typing import Any
 
-from .backup import validate_backup
+from .backup import BackupEngine, validate_backup
 from .device_manager import DeviceManager
-from .rpc import RpcError
+from .rpc import RpcError, RpcProtocolError
+from .scripts import async_put_script_code
 
 NETWORK_NAMESPACES = {"wifi", "eth", "ws", "cloud", "mqtt", "sys"}
 READ_ONLY_NAMESPACES = {
@@ -56,8 +57,11 @@ class RestoreItem:
 class RestoreEngine:
     """Build previews first and never factory-reset or restore connectivity."""
 
-    def __init__(self, manager: DeviceManager) -> None:
+    def __init__(
+        self, manager: DeviceManager, backups: BackupEngine | None = None
+    ) -> None:
         self.manager = manager
+        self.backups = backups
 
     async def async_preview(
         self, backup: dict[str, Any], target_id: str, *, mode: str = "smart"
@@ -105,13 +109,17 @@ class RestoreEngine:
                     )
                     continue
                 method = f"{namespace.upper() if lowered in {'rgb', 'rgbw'} else namespace.title()}.SetConfig"
-                if method not in target.capabilities.methods and lowered in READ_ONLY_NAMESPACES:
+                if method not in target.capabilities.methods:
                     items.append(
                         RestoreItem(
                             "component",
                             key,
                             RestoreStatus.UNSUPPORTED,
-                            reason="Component is read-only or SetConfig is unavailable",
+                            reason=(
+                                "Component is read-only"
+                                if lowered in READ_ONLY_NAMESPACES
+                                else f"Target does not advertise {method}"
+                            ),
                         )
                     )
                     continue
@@ -247,6 +255,11 @@ class RestoreEngine:
         if confirm is not True:
             raise ValueError("Explicit confirmation is required")
         preview = await self.async_preview(backup, target_id, mode=mode)
+        safety_backup = (
+            await self.backups.async_create(target_id, persist=True)
+            if self.backups is not None
+            else None
+        )
         results: list[RestoreItem] = []
         for raw in preview["items"]:
             item = RestoreItem(
@@ -265,10 +278,24 @@ class RestoreEngine:
                     created = await self.manager.async_call(
                         target_id, "Script.Create", {"name": item.params["name"]}
                     )
-                    await self.manager.async_call(
+                    if not isinstance(created, dict) or not isinstance(
+                        created.get("id"), int
+                    ):
+                        raise RpcProtocolError("Script.Create returned no script ID")
+                    await async_put_script_code(
+                        self.manager,
                         target_id,
-                        "Script.PutCode",
-                        {"id": int(created["id"]), "code": item.params["code"], "append": False},
+                        int(created["id"]),
+                        item.params["code"],
+                        manage_running=False,
+                    )
+                elif item.method == "Script.PutCode":
+                    await async_put_script_code(
+                        self.manager,
+                        target_id,
+                        int(item.params["id"]),
+                        item.params["code"],
+                        manage_running=True,
                     )
                 else:
                     await self.manager.async_call(target_id, item.method, item.params)
@@ -281,6 +308,7 @@ class RestoreEngine:
         return {
             "source_model": preview["source_model"],
             "target_model": preview["target_model"],
+            "safety_backup_id": safety_backup["id"] if safety_backup else None,
             "items": [item.as_dict() for item in results],
             "summary": _summary(results),
         }

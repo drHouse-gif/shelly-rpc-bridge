@@ -11,6 +11,7 @@ from typing import Any
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers.storage import Store
 
+from .capabilities import async_get_all_components
 from .const import (
     DOMAIN,
     MAX_BACKUP_BYTES,
@@ -18,7 +19,7 @@ from .const import (
     SECRET_KEYS,
 )
 from .device_manager import DeviceManager
-from .rpc import RpcError
+from .rpc import RpcError, RpcProtocolError
 
 BACKUP_VERSION = 1
 STORE_VERSION = 1
@@ -149,9 +150,7 @@ class BackupEngine:
         if not device.online:
             raise ValueError("Cannot back up an offline device")
         transport = self.manager.get_transport(device_id)
-        components = await transport.async_call(
-            "Shelly.GetComponents", {"include": ["config", "status"]}
-        )
+        components = await async_get_all_components(transport)
         resources: dict[str, Any] = {}
         methods = device.capabilities.methods
         if "Script.List" in methods:
@@ -223,6 +222,8 @@ class BackupEngine:
 
     async def _read_scripts(self, device_id: str) -> list[dict[str, Any]]:
         result = await self.manager.async_call(device_id, "Script.List")
+        if not isinstance(result, dict):
+            raise RpcProtocolError("Script.List returned an invalid response")
         scripts = result.get("scripts", [])
         output: list[dict[str, Any]] = []
         if not isinstance(scripts, list):
@@ -251,6 +252,8 @@ async def async_read_script_code(
         result = await manager.async_call(
             device_id, "Script.GetCode", {"id": script_id, "offset": offset}
         )
+        if not isinstance(result, dict):
+            raise RpcProtocolError("Script.GetCode returned an invalid response")
         data = result.get("data", result.get("code", ""))
         if not isinstance(data, str):
             raise ValueError("Script.GetCode returned invalid data")

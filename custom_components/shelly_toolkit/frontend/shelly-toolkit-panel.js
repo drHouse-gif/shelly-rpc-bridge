@@ -32,6 +32,7 @@ class ShellyToolkitPanel extends HTMLElement {
     this.backups = [];
     this.credentials = [];
     this.output = undefined;
+    this.overview = {};
     this.error = "";
     this.busy = false;
   }
@@ -50,6 +51,11 @@ class ShellyToolkitPanel extends HTMLElement {
     this.render();
   }
 
+  disconnectedCallback() {
+    if (this.eventSubscription) this.eventSubscription();
+    this.eventSubscription = undefined;
+  }
+
   async call(type, data = {}) {
     if (!this._hass) throw new Error("Home Assistant is not ready");
     return this._hass.callWS({ type: `shelly_toolkit/${type}`, ...data });
@@ -57,10 +63,11 @@ class ShellyToolkitPanel extends HTMLElement {
 
   async loadBase() {
     await this.run(async () => {
-      [this.devices, this.backups, this.credentials] = await Promise.all([
+      [this.devices, this.backups, this.credentials, this.overview] = await Promise.all([
         this.call("devices"),
         this.call("backups"),
         this.call("credentials"),
+        this.call("overview"),
       ]);
     }, false);
   }
@@ -142,9 +149,10 @@ class ShellyToolkitPanel extends HTMLElement {
     const remote = this.devices.filter((item) => item.connection === "remote").length;
     return `
       <div class="stats">
-        ${[["Devices", this.devices.length], ["Online", online], ["Remote", remote], ["Backups", this.backups.length]].map(([label, value]) => `<section class="stat"><span>${label}</span><strong>${value}</strong></section>`).join("")}
+        ${[["Devices", this.devices.length], ["Online", online], ["Remote", remote], ["Warnings", this.overview.warnings || 0], ["Backups", this.backups.length]].map(([label, value]) => `<section class="stat"><span>${label}</span><strong>${value}</strong></section>`).join("")}
       </div>
       <section class="card"><h2>Purpose</h2><p>Shelly Toolkit is an administrator-only maintenance and developer layer for Shelly Gen2+ RPC devices. It is not a cloud fleet manager and does not replace normal Home Assistant entities.</p></section>
+      ${this.overview.latest_problems?.length ? `<section class="card"><h2>Latest diagnostic problems</h2><ul class="list">${this.overview.latest_problems.map((item) => `<li><div><strong>${escapeHtml(item.name)}</strong><small>${escapeHtml(item.severity)} · ${escapeHtml(item.title)}</small></div></li>`).join("")}</ul></section>` : ""}
       ${this.outputCard()}`;
   }
 
@@ -155,9 +163,10 @@ class ShellyToolkitPanel extends HTMLElement {
       <td><span class="badge ${device.online ? "ok" : "bad"}">${device.online ? "Online" : "Offline"}</span></td>
       <td>${escapeHtml(device.firmware || "—")}</td><td>${escapeHtml(device.rssi ?? "—")}</td>
       <td>${escapeHtml(device.last_seen ? new Date(device.last_seen * 1000).toLocaleString() : "—")}</td>
+      <td><button class="secondary" data-capabilities="${escapeHtml(device.id)}">Capabilities</button>${device.connection === "local" ? ` <button class="danger" data-remove-local="${escapeHtml(device.id)}">Remove</button>` : ""}</td>
     </tr>`).join("");
     return `
-      <section class="card"><h2>Known targets</h2><div class="table"><table><thead><tr><th>Device</th><th>Model</th><th>Connection</th><th>Status</th><th>Firmware</th><th>RSSI</th><th>Last seen</th></tr></thead><tbody>${rows || '<tr><td colspan="7">No targets yet.</td></tr>'}</tbody></table></div></section>
+      <section class="card"><h2>Known targets</h2><div class="table"><table><thead><tr><th>Device</th><th>Model</th><th>Connection</th><th>Status</th><th>Firmware</th><th>RSSI</th><th>Last seen</th><th>Tools</th></tr></thead><tbody>${rows || '<tr><td colspan="8">No targets yet.</td></tr>'}</tbody></table></div></section>
       <section class="card"><h2>Add local RPC target</h2><p class="hint">If the official Shelly integration already owns the same MAC, Toolkit reuses it instead of creating duplicate entities.</p>
         <form id="local-form" class="form-grid">
           <label>Host<input name="host" required placeholder="192.168.1.25"></label>
@@ -172,6 +181,15 @@ class ShellyToolkitPanel extends HTMLElement {
   }
 
   bind_devices() {
+    this.shadowRoot.querySelectorAll("[data-capabilities]").forEach((button) => button.addEventListener("click", () => {
+      const device = this.devices.find((item) => item.id === button.dataset.capabilities);
+      this.output = device ? device.capabilities : { error: "Device not found" };
+      this.render();
+    }));
+    this.shadowRoot.querySelectorAll("[data-remove-local]").forEach((button) => button.addEventListener("click", () => {
+      if (!confirm("Remove this Toolkit-managed local target?")) return;
+      this.run(async () => { await this.call("local/remove", { device_id: button.dataset.removeLocal }); await this.loadBase(); return { removed: button.dataset.removeLocal }; }).catch(() => {});
+    }));
     this.shadowRoot.getElementById("local-form")?.addEventListener("submit", (event) => {
       event.preventDefault();
       const data = Object.fromEntries(new FormData(event.currentTarget));
@@ -308,11 +326,24 @@ class ShellyToolkitPanel extends HTMLElement {
   }
 
   render_events() {
-    return `<section class="card"><h2>Event Viewer</h2><form id="events-form" class="form-grid"><label>Device<select name="device_id"><option value="">All devices</option>${this.deviceOptions()}</select></label><label>Filter<input name="filter" placeholder="switch:0"></label><label>Limit<input name="limit" type="number" min="1" max="500" value="200"></label><button>Load events</button></form></section>${this.outputCard("Bounded event history")}`;
+    return `<section class="card"><h2>Event Viewer</h2><form id="events-form" class="form-grid"><label>Device<select name="device_id"><option value="">All devices</option>${this.deviceOptions()}</select></label><label>Filter<input name="filter" placeholder="switch:0"></label><label>Limit<input name="limit" type="number" min="1" max="500" value="200"></label><button>Load events</button><button type="button" id="events-live" class="secondary">${this.eventSubscription ? "Stop live events" : "Start live events"}</button></form></section>${this.outputCard("Bounded event history")}`;
   }
 
   bind_events() {
     this.shadowRoot.getElementById("events-form")?.addEventListener("submit", (event) => { event.preventDefault(); const data = new FormData(event.currentTarget); const request = { filter: data.get("filter") || undefined, limit: Number(data.get("limit")) }; if (data.get("device_id")) request.device_id = data.get("device_id"); this.run(() => this.call("events", request)).catch(() => {}); });
+    this.shadowRoot.getElementById("events-live")?.addEventListener("click", async () => {
+      if (this.eventSubscription) {
+        this.eventSubscription(); this.eventSubscription = undefined; this.render(); return;
+      }
+      try {
+        this.eventSubscription = await this._hass.connection.subscribeMessage((event) => {
+          const current = Array.isArray(this.output) ? this.output : [];
+          this.output = [event, ...current].slice(0, 200);
+          if (this.page === "events") this.render();
+        }, { type: "shelly_toolkit/events/subscribe" });
+        this.render();
+      } catch (error) { this.error = error?.message || String(error); this.render(); }
+    });
   }
 
   render_settings() {

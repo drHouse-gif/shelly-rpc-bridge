@@ -89,7 +89,7 @@ class RemoteRpcTransport:
         self._socket = socket
         self.device_id = device_id
         self._ids = count(secrets.randbelow(1_000_000) + 1)
-        self._pending: dict[int, asyncio.Future[dict[str, Any]]] = {}
+        self._pending: dict[int, asyncio.Future[Any]] = {}
         self._event_callback: EventCallback | None = None
         self.connected = True
         self.last_error: str | None = None
@@ -101,7 +101,7 @@ class RemoteRpcTransport:
 
     async def async_call(
         self, method: str, params: dict[str, Any] | None = None
-    ) -> dict[str, Any]:
+    ) -> Any:
         """Call RPC over the established outbound socket."""
         validate_method(method)
         await self.async_connect()
@@ -138,8 +138,8 @@ class RemoteRpcTransport:
                 future.set_exception(
                     RpcResponseError(error.get("code"), str(error.get("message", error)))
                 )
-            elif isinstance(result := frame.get("result"), dict):
-                future.set_result(result)
+            elif "result" in frame:
+                future.set_result(frame["result"])
             else:
                 future.set_exception(RpcProtocolError("Malformed remote RPC response"))
             return
@@ -321,4 +321,3 @@ class RemoteReceiverView(HomeAssistantView):
         await socket.prepare(request)
         await self._server.async_handle(socket, credential_id)
         return socket
-

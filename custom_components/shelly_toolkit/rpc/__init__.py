@@ -25,4 +25,3 @@ __all__ = [
     "WebSocketRpcTransport",
     "validate_method",
 ]
-

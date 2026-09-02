@@ -88,4 +88,3 @@ restart_script:
         number:
           min: 1
           mode: box
-

@@ -155,6 +155,13 @@ def async_register_websocket_commands(hass: HomeAssistant) -> None:
 def ws_overview(hass: HomeAssistant, connection: Any, msg: dict[str, Any]) -> None:
     runtime = _runtime(hass)
     devices = runtime.manager.list_devices()
+    reports = runtime.doctor.latest()
+    problems = [
+        {"device_id": report["device_id"], "name": report["name"], **finding}
+        for report in reports
+        for finding in report["findings"]
+        if finding["severity"] in {"WARNING", "ERROR"}
+    ]
     connection.send_result(
         msg["id"],
         {
@@ -162,7 +169,9 @@ def ws_overview(hass: HomeAssistant, connection: Any, msg: dict[str, Any]) -> No
             "online": sum(1 for item in devices if item["online"]),
             "remote": sum(1 for item in devices if item["connection"] == "remote"),
             "offline": sum(1 for item in devices if not item["online"]),
+            "warnings": len(problems),
             "backups": len(runtime.repository.list()),
+            "latest_problems": problems[-10:],
             "latest_events": runtime.events.list(limit=10),
         },
     )

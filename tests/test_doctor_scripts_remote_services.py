@@ -3,11 +3,13 @@
 from __future__ import annotations
 
 from types import SimpleNamespace
+import ipaddress
 
 import pytest
 import voluptuous as vol
 
 from custom_components.shelly_toolkit.doctor import ShellyDoctor
+from custom_components.shelly_toolkit.device_manager import _is_safe_local_address
 from custom_components.shelly_toolkit.models import CapabilitySet, ConnectionKind, ToolkitDevice
 from custom_components.shelly_toolkit.remote import (
     RemoteServer,
@@ -61,7 +63,7 @@ async def test_doctor_uses_only_available_evidence(monkeypatch) -> None:
     result = await doctor.async_run(device.id)
     findings = {item["key"]: item for item in result["findings"]}
     assert findings["wifi"]["severity"] == "WARNING"
-    assert findings["temperature"]["severity"] == "WARNING"
+    assert findings["temperature_0"]["severity"] == "WARNING"
     assert findings["ram_free"]["severity"] == "ERROR"
     assert "reboots" not in findings
     assert result["health"] < 100
@@ -137,3 +139,10 @@ def test_service_schemas_reject_unsafe_input() -> None:
         )
     with pytest.raises(vol.Invalid):
         RESTART_SCRIPT_SCHEMA({"device_id": "local:test", "script_id": 0})
+
+
+def test_local_target_address_policy_blocks_ssrf_sensitive_ranges() -> None:
+    assert _is_safe_local_address(ipaddress.ip_address("192.168.1.25"))
+    assert not _is_safe_local_address(ipaddress.ip_address("127.0.0.1"))
+    assert not _is_safe_local_address(ipaddress.ip_address("169.254.169.254"))
+    assert not _is_safe_local_address(ipaddress.ip_address("8.8.8.8"))

@@ -75,7 +75,7 @@ async def async_setup_entry(
     await manager.async_start()
     coordinator = ToolkitCoordinator(hass, entry, manager)
     backups = BackupEngine(manager, repository)
-    restore = RestoreEngine(manager)
+    restore = RestoreEngine(manager, backups)
     runtime = ToolkitRuntime(
         manager=manager,
         coordinator=coordinator,

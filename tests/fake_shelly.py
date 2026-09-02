@@ -79,6 +79,8 @@ class FakeShellyRpcServer:
             return web.json_response(
                 {"id": frame["id"], "error": {"code": -103, "message": "Unsupported"}}
             )
+        if method == "Test.Null":
+            return web.json_response({"id": frame["id"], "result": None})
         return web.json_response({"id": frame["id"], "result": self.result(method, frame.get("params"))})
 
     async def _websocket_rpc(self, request: web.Request) -> web.WebSocketResponse:
@@ -120,6 +122,9 @@ class FakeShellyRpcServer:
             await socket.send_json(
                 {"id": frame["id"], "error": {"code": -103, "message": "Unsupported"}}
             )
+            return
+        if method == "Test.Null":
+            await socket.send_json({"id": frame["id"], "result": None})
             return
         if method == "Test.Delayed":
             await asyncio.sleep(0.02)

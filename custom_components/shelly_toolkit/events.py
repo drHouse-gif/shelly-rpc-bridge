@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from collections import deque
 from collections.abc import Callable
+import json
 import time
 from typing import Any
 
@@ -67,8 +68,16 @@ class EventStore:
         for event in values:
             if device_id is not None and event.device_id != device_id:
                 continue
-            if event_filter and event_filter.lower() not in event.event.lower():
-                continue
+            if event_filter:
+                haystack = " ".join(
+                    (
+                        event.event,
+                        event.component or "",
+                        json.dumps(event.payload, sort_keys=True, default=str),
+                    )
+                ).lower()
+                if event_filter.lower() not in haystack:
+                    continue
             result.append(event.as_dict())
             if len(result) >= limit:
                 break
@@ -78,4 +87,3 @@ class EventStore:
         """Subscribe to new records."""
         self._listeners.add(listener)
         return lambda: self._listeners.discard(listener)
-

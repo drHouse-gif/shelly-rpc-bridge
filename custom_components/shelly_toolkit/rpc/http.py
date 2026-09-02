@@ -8,7 +8,7 @@ from typing import Any
 
 import aiohttp
 
-from .base import EventCallback, validate_method
+from .base import EventCallback, format_url_host, validate_method
 from .errors import (
     RpcAuthError,
     RpcProtocolError,
@@ -49,7 +49,7 @@ class HttpRpcTransport:
     def url(self) -> str:
         """Return RPC endpoint."""
         scheme = "https" if self._use_ssl else "http"
-        return f"{scheme}://{self._host}:{self._port}/rpc"
+        return f"{scheme}://{format_url_host(self._host)}:{self._port}/rpc"
 
     async def async_connect(self) -> None:
         """Validate transport with the unauthenticated device-info method."""
@@ -57,7 +57,7 @@ class HttpRpcTransport:
 
     async def async_call(
         self, method: str, params: dict[str, Any] | None = None
-    ) -> dict[str, Any]:
+    ) -> Any:
         """Call a Shelly RPC method."""
         validate_method(method)
         frame: dict[str, Any] = {
@@ -102,9 +102,9 @@ class HttpRpcTransport:
             raise RpcProtocolError("RPC response must be a JSON object")
         if isinstance(error := payload.get("error"), dict):
             raise RpcResponseError(error.get("code"), str(error.get("message", error)))
-        result = payload.get("result")
-        if not isinstance(result, dict):
-            raise RpcProtocolError("RPC result must be a JSON object")
+        if "result" not in payload:
+            raise RpcProtocolError("RPC response is missing result")
+        result = payload["result"]
         self.connected = True
         self.last_error = None
         return result
@@ -115,4 +115,3 @@ class HttpRpcTransport:
 
     def set_event_callback(self, callback: EventCallback | None) -> None:
         """HTTP has no push notification channel."""
-

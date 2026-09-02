@@ -8,9 +8,9 @@ from homeassistant.components.diagnostics import async_redact_data
 from homeassistant.core import HomeAssistant
 
 from . import ShellyToolkitConfigEntry
-from .const import CONF_LOCAL_DEVICES, CONF_REMOTE_CREDENTIALS
+from .const import CONF_LOCAL_DEVICES, CONF_REMOTE_CREDENTIALS, SECRET_KEYS
 
-TO_REDACT = {"password", "secret_hash", "token", "ha1"}
+TO_REDACT = set(SECRET_KEYS) | {"secret_hash"}
 
 
 async def async_get_config_entry_diagnostics(
@@ -26,4 +26,3 @@ async def async_get_config_entry_diagnostics(
         "local_target_count": len(entry.data.get(CONF_LOCAL_DEVICES, [])),
         "remote_credential_count": len(entry.data.get(CONF_REMOTE_CREDENTIALS, [])),
     }
-

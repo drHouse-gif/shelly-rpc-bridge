@@ -6,7 +6,7 @@ import time
 from typing import Any
 
 from .models import CapabilitySet
-from .rpc import RpcError, RpcTransport
+from .rpc import RpcError, RpcProtocolError, RpcTransport
 
 READ_METHODS_BY_COMPONENT = {
     "switch": {"Switch.GetConfig", "Switch.GetStatus", "Switch.Set"},
@@ -66,13 +66,47 @@ def parse_capabilities(
 
 async def async_discover_capabilities(transport: RpcTransport) -> CapabilitySet:
     """Discover components and methods, tolerating older firmware."""
-    components = await transport.async_call(
-        "Shelly.GetComponents", {"include": ["config", "status"]}
-    )
+    components = await async_get_all_components(transport)
     methods: dict[str, Any] | None = None
     try:
         methods = await transport.async_call("Shelly.ListMethods")
+        if not isinstance(methods, dict):
+            raise RpcProtocolError("Shelly.ListMethods returned an invalid response")
     except RpcError:
         pass
     return parse_capabilities(components, methods)
 
+
+async def async_get_all_components(
+    transport: RpcTransport, *, include: tuple[str, ...] = ("config", "status")
+) -> dict[str, Any]:
+    """Read every GetComponents page with a defensive upper bound."""
+    components: list[dict[str, Any]] = []
+    offset = 0
+    cfg_rev: int | None = None
+    total: int | None = None
+    for _ in range(100):
+        page = await transport.async_call(
+            "Shelly.GetComponents", {"include": list(include), "offset": offset}
+        )
+        if not isinstance(page, dict):
+            raise RpcProtocolError("Shelly.GetComponents returned an invalid response")
+        raw = page.get("components", [])
+        if not isinstance(raw, list):
+            raise RpcProtocolError("Shelly.GetComponents returned an invalid component list")
+        components.extend(item for item in raw if isinstance(item, dict))
+        if isinstance(page.get("cfg_rev"), int):
+            cfg_rev = page["cfg_rev"]
+        if isinstance(page.get("total"), int):
+            total = page["total"]
+        if not raw or total is None or len(components) >= total:
+            break
+        offset += len(raw)
+    else:
+        raise RpcProtocolError("Shelly.GetComponents exceeded the pagination limit")
+    return {
+        "components": components,
+        "offset": 0,
+        "total": total if total is not None else len(components),
+        "cfg_rev": cfg_rev,
+    }

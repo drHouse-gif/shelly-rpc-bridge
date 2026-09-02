@@ -27,6 +27,7 @@ async def test_normal_and_concurrent_requests(fake_shelly, transport_class) -> N
         )
         assert info["gen"] == 2
         assert echoed == {"echo": {"number": 2}, "method": "Test.Delayed"}
+        assert await transport.async_call("Test.Null") is None
         assert transport.connected
         await transport.async_close()
 
@@ -107,6 +108,6 @@ async def test_websocket_digest_authentication(fake_shelly) -> None:
         bad = WebSocketRpcTransport(
             session, fake_shelly.host, port=fake_shelly.port, password="wrong"
         )
-        with pytest.raises(RpcResponseError):
+        with pytest.raises(RpcAuthError):
             await bad.async_call("Shelly.GetDeviceInfo")
         await bad.async_close()

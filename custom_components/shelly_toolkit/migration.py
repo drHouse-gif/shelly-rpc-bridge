@@ -43,4 +43,3 @@ class MigrationEngine:
         return await self.restore.async_apply(
             backup, target_id, mode=mode, confirm=confirm
         )
-

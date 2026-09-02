@@ -11,7 +11,7 @@ from typing import Any
 
 import aiohttp
 
-from .base import EventCallback, validate_method
+from .base import EventCallback, format_url_host, validate_method
 from .errors import (
     RpcAuthError,
     RpcProtocolError,
@@ -48,7 +48,7 @@ class WebSocketRpcTransport:
         self._socket: aiohttp.ClientWebSocketResponse | None = None
         self._reader: asyncio.Task[None] | None = None
         self._connect_lock = asyncio.Lock()
-        self._pending: dict[int, asyncio.Future[dict[str, Any]]] = {}
+        self._pending: dict[int, asyncio.Future[Any]] = {}
         self._event_callback: EventCallback | None = None
         self._challenge: dict[str, Any] | None = None
         self._nonce_count = 0
@@ -59,7 +59,7 @@ class WebSocketRpcTransport:
     def url(self) -> str:
         """Return WebSocket RPC endpoint."""
         scheme = "wss" if self._use_ssl else "ws"
-        return f"{scheme}://{self._host}:{self._port}/rpc"
+        return f"{scheme}://{format_url_host(self._host)}:{self._port}/rpc"
 
     async def async_connect(self) -> None:
         """Connect once; concurrent callers share the same attempt."""
@@ -86,7 +86,7 @@ class WebSocketRpcTransport:
 
     async def async_call(
         self, method: str, params: dict[str, Any] | None = None
-    ) -> dict[str, Any]:
+    ) -> Any:
         """Call an RPC method, reconnecting once after transport failure."""
         validate_method(method)
         for attempt in range(2):
@@ -94,8 +94,12 @@ class WebSocketRpcTransport:
                 await self.async_connect()
                 return await self._call_connected(method, params)
             except RpcResponseError as err:
-                if err.code != 401 or attempt:
+                if err.code != 401:
                     raise
+                if attempt:
+                    self.connected = False
+                    self.last_error = "authentication_failed"
+                    raise RpcAuthError("Shelly authentication failed") from err
                 self._set_challenge(err.message)
             except RpcUnavailableError:
                 if attempt:
@@ -105,7 +109,7 @@ class WebSocketRpcTransport:
 
     async def _call_connected(
         self, method: str, params: dict[str, Any] | None
-    ) -> dict[str, Any]:
+    ) -> Any:
         socket = self._socket
         if socket is None or socket.closed:
             raise RpcUnavailableError("WebSocket is not connected")
@@ -166,8 +170,8 @@ class WebSocketRpcTransport:
                                 error.get("code"), str(error.get("message", error))
                             )
                         )
-                    elif isinstance(result := frame.get("result"), dict):
-                        future.set_result(result)
+                    elif "result" in frame:
+                        future.set_result(frame["result"])
                     else:
                         future.set_exception(RpcProtocolError("Malformed RPC response"))
                     continue
@@ -242,4 +246,3 @@ class WebSocketRpcTransport:
     def set_event_callback(self, callback: EventCallback | None) -> None:
         """Set notification callback."""
         self._event_callback = callback
-
