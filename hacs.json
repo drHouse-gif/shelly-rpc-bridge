@@ -1,4 +1,5 @@
 {
-  "name": "Shelly RPC Bridge",
+  "homeassistant": "2026.8.0",
+  "name": "Shelly Toolkit for Home Assistant",
   "render_readme": true
 }

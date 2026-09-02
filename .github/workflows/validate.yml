@@ -5,27 +5,74 @@ on:
   pull_request:
   workflow_dispatch:
 
+permissions:
+  contents: read
+
+concurrency:
+  group: validate-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
-  python:
+  quality:
+    name: Lint, format, types, and frontend
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v7
         with:
-          python-version: "3.13"
-      - run: python -m unittest tests.test_models -v
-      - run: python -m compileall -q custom_components
+          python-version: "3.14"
+          cache: pip
+      - name: Install quality tools
+        run: python -m pip install "mypy>=1.18.2,<2" "ruff>=0.13.2,<1"
+      - name: Ruff lint
+        run: ruff check .
+      - name: Ruff format
+        run: ruff format --check custom_components tests
+      - name: Static types
+        run: mypy custom_components/shelly_toolkit
+      - name: Syntax and JSON
+        run: |
+          python -m compileall -q custom_components tests
+          python - <<'PY'
+          import json
+          from pathlib import Path
+
+          for path in Path("custom_components/shelly_toolkit").rglob("*.json"):
+              json.loads(path.read_text())
+          json.loads(Path("hacs.json").read_text())
+          json.loads(Path("package.json").read_text())
+          PY
+      - name: Frontend syntax and tests
+        run: |
+          node --check custom_components/shelly_toolkit/frontend/shelly-toolkit-panel.js
+          node --test tests/frontend.test.mjs
+
+  tests:
+    name: Python tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v7
+        with:
+          python-version: "3.14"
+          cache: pip
+      - name: Install Home Assistant test environment
+        run: python -m pip install pytest-homeassistant-custom-component==0.13.361
+      - name: Run tests
+        run: pytest -q
 
   hacs:
+    name: HACS validation
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - uses: hacs/action@main
         with:
           category: integration
 
   hassfest:
+    name: Hassfest
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - uses: home-assistant/actions/hassfest@master

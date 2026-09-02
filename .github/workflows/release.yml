@@ -1,0 +1,24 @@
+name: Package release
+
+on:
+  push:
+    tags:
+      - "v*.*.*"
+
+permissions:
+  contents: write
+
+jobs:
+  package:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - name: Build HACS archive
+        run: |
+          cd custom_components
+          zip -r ../shelly_toolkit.zip shelly_toolkit
+      - name: Attach archive to pre-release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: shelly_toolkit.zip
+          prerelease: true

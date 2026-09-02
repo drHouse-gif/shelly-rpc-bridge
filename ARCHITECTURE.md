@@ -40,7 +40,8 @@ targets. Push-connected remote devices update state and events immediately.
 Backups are JSON objects with a schema version. Secret-like keys are removed at
 capture time, and network/auth configuration is never restored automatically.
 Backups are stored through Home Assistant's `.storage` abstraction and can be
-downloaded explicitly from the panel.
+downloaded explicitly from the panel. Confirmed restore and migration capture a
+target safety backup before applying the first operation.
 
 ## Remote credential model
 
