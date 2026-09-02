@@ -17,7 +17,7 @@
 - Corrected documentation about Toolkit-owned entities and the sensitivity of
   backups containing script source.
 
-Physical Shelly hardware validation is not included in this release.
+A basic smoke test on physical Shelly Gen2+ hardware completed successfully.
 
 ## 0.4.0 - 2026-09-02
 

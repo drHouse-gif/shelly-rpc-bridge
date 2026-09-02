@@ -8,8 +8,8 @@ migration, scripting, and remote connectivity.
 > compatibility. The project is maintained by **Dr. House** (`drHouse-gif`).
 
 Version **0.4.1** is an experimental pre-release intended for careful testing
-on non-critical devices. It has extensive automated simulation coverage but
-has not yet been validated on physical Shelly hardware.
+on non-critical devices. It has extensive automated simulation coverage and a
+successful smoke test on physical Shelly Gen2+ hardware.
 
 ## What is Shelly Toolkit?
 
