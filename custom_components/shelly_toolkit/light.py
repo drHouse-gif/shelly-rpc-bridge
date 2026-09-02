@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from typing import Any
+
 from homeassistant.components.light import (
     ATTR_BRIGHTNESS,
     ATTR_RGB_COLOR,
@@ -83,7 +85,7 @@ class ToolkitLight(ToolkitEntity, LightEntity):
     def rgb_color(self) -> tuple[int, int, int] | None:
         value = self.component.status.get("rgb")
         if isinstance(value, list) and len(value) >= 3:
-            return tuple(int(item) for item in value[:3])
+            return (int(value[0]), int(value[1]), int(value[2]))
         return None
 
     @property
@@ -91,12 +93,12 @@ class ToolkitLight(ToolkitEntity, LightEntity):
         rgb = self.component.status.get("rgb")
         white = self.component.status.get("white")
         if isinstance(rgb, list) and len(rgb) >= 3 and isinstance(white, int):
-            return (*tuple(int(item) for item in rgb[:3]), white)
+            return (int(rgb[0]), int(rgb[1]), int(rgb[2]), white)
         return None
 
     async def async_turn_on(self, **kwargs) -> None:
-        params = {"id": self.component.component_id, "on": True}
-        optimistic = {"output": True}
+        params: dict[str, Any] = {"id": self.component.component_id, "on": True}
+        optimistic: dict[str, Any] = {"output": True}
         if ATTR_BRIGHTNESS in kwargs:
             percent = round(kwargs[ATTR_BRIGHTNESS] * 100 / 255)
             params["brightness"] = percent
