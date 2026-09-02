@@ -2,8 +2,8 @@
 
 from __future__ import annotations
 
-from collections.abc import Awaitable, Callable
 import re
+from collections.abc import Awaitable, Callable
 from typing import Any, Protocol
 
 from .errors import RpcProtocolError
@@ -33,9 +33,7 @@ class RpcTransport(Protocol):
     async def async_connect(self) -> None:
         """Connect or validate the transport."""
 
-    async def async_call(
-        self, method: str, params: dict[str, Any] | None = None
-    ) -> Any:
+    async def async_call(self, method: str, params: dict[str, Any] | None = None) -> Any:
         """Call an RPC method."""
 
     async def async_close(self) -> None:

@@ -5,8 +5,8 @@ from __future__ import annotations
 import asyncio
 import hashlib
 import json
-from itertools import count
 import secrets
+from itertools import count
 from typing import Any
 
 import aiohttp
@@ -84,9 +84,7 @@ class WebSocketRpcTransport:
             self.last_error = None
             self._reader = asyncio.create_task(self._reader_loop())
 
-    async def async_call(
-        self, method: str, params: dict[str, Any] | None = None
-    ) -> Any:
+    async def async_call(self, method: str, params: dict[str, Any] | None = None) -> Any:
         """Call an RPC method, reconnecting once after transport failure."""
         validate_method(method)
         for attempt in range(2):
@@ -107,9 +105,7 @@ class WebSocketRpcTransport:
                 await self._close_socket()
         raise RpcUnavailableError("RPC call failed")
 
-    async def _call_connected(
-        self, method: str, params: dict[str, Any] | None
-    ) -> Any:
+    async def _call_connected(self, method: str, params: dict[str, Any] | None) -> Any:
         socket = self._socket
         if socket is None or socket.closed:
             raise RpcUnavailableError("WebSocket is not connected")
@@ -156,7 +152,7 @@ class WebSocketRpcTransport:
                 try:
                     raw = message.data.decode() if isinstance(message.data, bytes) else message.data
                     frame = json.loads(raw)
-                except (UnicodeDecodeError, json.JSONDecodeError):
+                except UnicodeDecodeError, json.JSONDecodeError:
                     self.last_error = "malformed_json"
                     continue
                 if not isinstance(frame, dict):
@@ -166,9 +162,7 @@ class WebSocketRpcTransport:
                     future = self._pending[request_id]
                     if isinstance(error := frame.get("error"), dict):
                         future.set_exception(
-                            RpcResponseError(
-                                error.get("code"), str(error.get("message", error))
-                            )
+                            RpcResponseError(error.get("code"), str(error.get("message", error)))
                         )
                     elif "result" in frame:
                         future.set_result(frame["result"])
@@ -192,7 +186,11 @@ class WebSocketRpcTransport:
             challenge = json.loads(message)
         except json.JSONDecodeError as err:
             raise RpcAuthError("Malformed Shelly authentication challenge") from err
-        if not isinstance(challenge, dict) or not challenge.get("nonce") or not challenge.get("realm"):
+        if (
+            not isinstance(challenge, dict)
+            or not challenge.get("nonce")
+            or not challenge.get("realm")
+        ):
             raise RpcAuthError("Incomplete Shelly authentication challenge")
         self._challenge = challenge
         self._nonce_count = 0
@@ -204,13 +202,9 @@ class WebSocketRpcTransport:
         nonce = self._challenge["nonce"]
         nc = f"{self._nonce_count:08x}"
         cnonce = secrets.randbelow(2_147_483_647)
-        ha1 = hashlib.sha256(
-            f"{self._username}:{realm}:{self._password}".encode()
-        ).hexdigest()
+        ha1 = hashlib.sha256(f"{self._username}:{realm}:{self._password}".encode()).hexdigest()
         ha2 = hashlib.sha256(b"dummy_method:dummy_uri").hexdigest()
-        response = hashlib.sha256(
-            f"{ha1}:{nonce}:{nc}:{cnonce}:auth:{ha2}".encode()
-        ).hexdigest()
+        response = hashlib.sha256(f"{ha1}:{nonce}:{nc}:{cnonce}:auth:{ha2}".encode()).hexdigest()
         return {
             "realm": realm,
             "username": self._username,

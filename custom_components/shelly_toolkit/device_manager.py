@@ -3,12 +3,12 @@
 from __future__ import annotations
 
 import asyncio
-from copy import deepcopy
 import ipaddress
 import logging
 import secrets
 import socket
 import time
+from copy import deepcopy
 from typing import Any
 
 from homeassistant.config_entries import ConfigEntry, ConfigEntryState
@@ -58,9 +58,7 @@ class OfficialShellyTransport:
         """Validate the official coordinator target."""
         await self.async_call("Shelly.GetDeviceInfo")
 
-    async def async_call(
-        self, method: str, params: dict[str, Any] | None = None
-    ) -> Any:
+    async def async_call(self, method: str, params: dict[str, Any] | None = None) -> Any:
         """Delegate to aioshelly through Home Assistant's coordinator."""
         try:
             result = await self._coordinator.device.call_rpc(method, params or {})
@@ -103,9 +101,7 @@ class DeviceManager:
 
     async def async_start(self) -> None:
         """Create transports and make the manager available immediately."""
-        credentials = normalize_credentials(
-            self.entry.data.get(CONF_REMOTE_CREDENTIALS, [])
-        )
+        credentials = normalize_credentials(self.entry.data.get(CONF_REMOTE_CREDENTIALS, []))
         if credentials != self.entry.data.get(CONF_REMOTE_CREDENTIALS, []):
             self._update_entry_data(CONF_REMOTE_CREDENTIALS, credentials)
         self.remote_server.configure(
@@ -151,7 +147,11 @@ class DeviceManager:
         return device_id
 
     def _transport_from_local(self, config: dict[str, Any]) -> RpcTransport:
-        cls = HttpRpcTransport if config.get(CONF_TRANSPORT) == TRANSPORT_HTTP else WebSocketRpcTransport
+        cls = (
+            HttpRpcTransport
+            if config.get(CONF_TRANSPORT) == TRANSPORT_HTTP
+            else WebSocketRpcTransport
+        )
         return cls(
             async_get_clientsession(self.hass),
             str(config[CONF_HOST]),
@@ -323,9 +323,7 @@ class DeviceManager:
 
     async def async_bind_credential(self, credential_id: str, raw_device_id: str) -> None:
         """Persist first-use device binding without storing the secret."""
-        credentials = normalize_credentials(
-            self.entry.data.get(CONF_REMOTE_CREDENTIALS, [])
-        )
+        credentials = normalize_credentials(self.entry.data.get(CONF_REMOTE_CREDENTIALS, []))
         for item in credentials:
             if item["id"] == credential_id:
                 item["bound_device_id"] = raw_device_id

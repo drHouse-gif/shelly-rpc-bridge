@@ -2,8 +2,8 @@
 
 from __future__ import annotations
 
-from datetime import timedelta
 import logging
+from datetime import timedelta
 from typing import Any
 
 from homeassistant.config_entries import ConfigEntry
@@ -19,9 +19,7 @@ LOGGER = logging.getLogger(__name__)
 class ToolkitCoordinator(DataUpdateCoordinator[list[dict[str, Any]]]):
     """Refresh local and official targets while remote targets stay push-driven."""
 
-    def __init__(
-        self, hass: HomeAssistant, entry: ConfigEntry, manager: DeviceManager
-    ) -> None:
+    def __init__(self, hass: HomeAssistant, entry: ConfigEntry, manager: DeviceManager) -> None:
         super().__init__(
             hass,
             LOGGER,

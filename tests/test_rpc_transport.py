@@ -44,9 +44,7 @@ async def test_rpc_error(fake_shelly, transport_class) -> None:
 
 async def test_http_timeout_and_malformed_response(fake_shelly) -> None:
     async with aiohttp.ClientSession() as session:
-        transport = HttpRpcTransport(
-            session, fake_shelly.host, port=fake_shelly.port, timeout=0.03
-        )
+        transport = HttpRpcTransport(session, fake_shelly.host, port=fake_shelly.port, timeout=0.03)
         with pytest.raises(RpcTimeoutError):
             await transport.async_call("Test.Timeout")
         with pytest.raises(RpcProtocolError):
@@ -87,9 +85,7 @@ async def test_http_digest_authentication(fake_shelly) -> None:
             password=fake_shelly.password,
         )
         assert (await good.async_call("Shelly.GetDeviceInfo"))["gen"] == 2
-        bad = HttpRpcTransport(
-            session, fake_shelly.host, port=fake_shelly.port, password="wrong"
-        )
+        bad = HttpRpcTransport(session, fake_shelly.host, port=fake_shelly.port, password="wrong")
         with pytest.raises(RpcAuthError):
             await bad.async_call("Shelly.GetDeviceInfo")
 

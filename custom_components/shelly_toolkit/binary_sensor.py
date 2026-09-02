@@ -34,7 +34,10 @@ async def async_setup_entry(
                 for path, value in flatten_scalars(component.status):
                     if not isinstance(value, bool):
                         continue
-                    if component.kind in {"switch", "cb", "light", "rgb", "rgbw"} and path[-1] in {"output", "on"}:
+                    if component.kind in {"switch", "cb", "light", "rgb", "rgbw"} and path[-1] in {
+                        "output",
+                        "on",
+                    }:
                         continue
                     unique = f"{device.id}:{component.key}:{'.'.join(path)}"
                     if unique in seen:

@@ -57,8 +57,7 @@ class FakeShellyRpcServer:
                 status=401,
                 headers={
                     "WWW-Authenticate": (
-                        'Digest realm="shelly", nonce="nonce123", '
-                        'algorithm=SHA-256, qop="auth"'
+                        'Digest realm="shelly", nonce="nonce123", algorithm=SHA-256, qop="auth"'
                     )
                 },
             )
@@ -81,7 +80,9 @@ class FakeShellyRpcServer:
             )
         if method == "Test.Null":
             return web.json_response({"id": frame["id"], "result": None})
-        return web.json_response({"id": frame["id"], "result": self.result(method, frame.get("params"))})
+        return web.json_response(
+            {"id": frame["id"], "result": self.result(method, frame.get("params"))}
+        )
 
     async def _websocket_rpc(self, request: web.Request) -> web.WebSocketResponse:
         socket = web.WebSocketResponse()
@@ -103,9 +104,7 @@ class FakeShellyRpcServer:
             await asyncio.gather(*tasks, return_exceptions=True)
         return socket
 
-    async def _ws_response(
-        self, socket: web.WebSocketResponse, frame: dict[str, Any]
-    ) -> None:
+    async def _ws_response(self, socket: web.WebSocketResponse, frame: dict[str, Any]) -> None:
         method = frame.get("method")
         if self.require_ws_auth and not self._valid_ws_auth(frame.get("auth")):
             challenge = json.dumps({"realm": "shelly", "nonce": 123456789})

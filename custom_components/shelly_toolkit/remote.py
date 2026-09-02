@@ -3,19 +3,18 @@
 from __future__ import annotations
 
 import asyncio
-from collections.abc import Awaitable, Callable, Iterable
 import hashlib
 import hmac
-from itertools import count
 import json
 import logging
 import re
 import secrets
 import time
+from collections.abc import Awaitable, Callable, Iterable
+from itertools import count
 from typing import Any
 
 from aiohttp import WSMsgType, web
-
 from homeassistant.components.http import HomeAssistantView
 
 from .const import MAX_DEVICES, REMOTE_WS_PATH
@@ -99,9 +98,7 @@ class RemoteRpcTransport:
         if self._socket.closed or not self.connected:
             raise RpcUnavailableError("Remote Shelly is offline")
 
-    async def async_call(
-        self, method: str, params: dict[str, Any] | None = None
-    ) -> Any:
+    async def async_call(self, method: str, params: dict[str, Any] | None = None) -> Any:
         """Call RPC over the established outbound socket."""
         validate_method(method)
         await self.async_connect()
@@ -188,16 +185,16 @@ class RemoteServer:
         self._connect_callback = connect_callback
         self._disconnect_callback = disconnect_callback
 
-    async def async_update_credentials(
-        self, credentials: Iterable[dict[str, Any]]
-    ) -> None:
+    async def async_update_credentials(self, credentials: Iterable[dict[str, Any]]) -> None:
         """Replace credentials and disconnect revoked or regenerated sessions."""
         updated = {item["id"]: dict(item) for item in credentials}
         for credential_id, device_id in tuple(self._credential_devices.items()):
             old = self._credentials.get(credential_id)
             new = updated.get(credential_id)
-            if old is not None and new is not None and hmac.compare_digest(
-                str(old["secret_hash"]), str(new["secret_hash"])
+            if (
+                old is not None
+                and new is not None
+                and hmac.compare_digest(str(old["secret_hash"]), str(new["secret_hash"]))
             ):
                 continue
             transport = self._transports.get(device_id)
@@ -212,9 +209,7 @@ class RemoteServer:
             return False
         return hmac.compare_digest(str(record["secret_hash"]), hash_remote_secret(secret))
 
-    async def async_handle(
-        self, socket: web.WebSocketResponse, credential_id: str
-    ) -> None:
+    async def async_handle(self, socket: web.WebSocketResponse, credential_id: str) -> None:
         """Identify, bind, and serve one outbound Shelly socket."""
         identify_id = secrets.randbelow(1_000_000) + 1
         await socket.send_json(

@@ -2,13 +2,12 @@
 
 from __future__ import annotations
 
-from copy import deepcopy
 import json
+from copy import deepcopy
 from typing import Any
 from urllib.parse import urlencode, urlsplit, urlunsplit
 
 import voluptuous as vol
-
 from homeassistant.components import websocket_api
 from homeassistant.core import HomeAssistant, callback
 from homeassistant.helpers import config_validation as cv
@@ -255,9 +254,7 @@ def ws_credentials(hass: HomeAssistant, connection: Any, msg: dict[str, Any]) ->
 async def ws_credential_create(hass: HomeAssistant, connection: Any, msg: dict[str, Any]) -> None:
     record, secret = new_remote_credential(msg["name"])
     runtime = _runtime(hass)
-    credentials = normalize_credentials(
-        runtime.manager.entry.data.get(CONF_REMOTE_CREDENTIALS, [])
-    )
+    credentials = normalize_credentials(runtime.manager.entry.data.get(CONF_REMOTE_CREDENTIALS, []))
     credentials.append(record)
     await _set_credentials(hass, credentials)
     connection.send_result(
@@ -283,7 +280,9 @@ async def ws_credential_revoke(hass: HomeAssistant, connection: Any, msg: dict[s
     runtime = _runtime(hass)
     credentials = [
         item
-        for item in normalize_credentials(runtime.manager.entry.data.get(CONF_REMOTE_CREDENTIALS, []))
+        for item in normalize_credentials(
+            runtime.manager.entry.data.get(CONF_REMOTE_CREDENTIALS, [])
+        )
         if item["id"] != msg["credential_id"]
     ]
     await _set_credentials(hass, credentials)
@@ -299,11 +298,11 @@ async def ws_credential_revoke(hass: HomeAssistant, connection: Any, msg: dict[s
     }
 )
 @websocket_api.async_response
-async def ws_credential_regenerate(hass: HomeAssistant, connection: Any, msg: dict[str, Any]) -> None:
+async def ws_credential_regenerate(
+    hass: HomeAssistant, connection: Any, msg: dict[str, Any]
+) -> None:
     runtime = _runtime(hass)
-    credentials = normalize_credentials(
-        runtime.manager.entry.data.get(CONF_REMOTE_CREDENTIALS, [])
-    )
+    credentials = normalize_credentials(runtime.manager.entry.data.get(CONF_REMOTE_CREDENTIALS, []))
     target = next((item for item in credentials if item["id"] == msg["credential_id"]), None)
     if target is None:
         raise ValueError("Unknown credential")
@@ -314,7 +313,9 @@ async def ws_credential_regenerate(hass: HomeAssistant, connection: Any, msg: di
     connection.send_result(
         msg["id"],
         {
-            "credential": next(item for item in _public_credentials(hass) if item["id"] == target["id"]),
+            "credential": next(
+                item for item in _public_credentials(hass) if item["id"] == target["id"]
+            ),
             "url": _remote_url(hass, replacement["id"], secret),
             "secret_shown_once": True,
         },
@@ -336,9 +337,7 @@ async def ws_rpc_call(hass: HomeAssistant, connection: Any, msg: dict[str, Any])
     method = validate_method(msg["method"])
     if method in DESTRUCTIVE_RPC_METHODS and msg["confirm"] is not True:
         raise ValueError("Destructive RPC requires explicit confirmation")
-    result = await _runtime(hass).manager.async_call(
-        msg["device_id"], method, msg["params"]
-    )
+    result = await _runtime(hass).manager.async_call(msg["device_id"], method, msg["params"])
     connection.send_result(msg["id"], result)
 
 
@@ -348,9 +347,7 @@ async def ws_rpc_call(hass: HomeAssistant, connection: Any, msg: dict[str, Any])
 )
 @websocket_api.async_response
 async def ws_doctor(hass: HomeAssistant, connection: Any, msg: dict[str, Any]) -> None:
-    connection.send_result(
-        msg["id"], await _runtime(hass).doctor.async_run(msg["device_id"])
-    )
+    connection.send_result(msg["id"], await _runtime(hass).doctor.async_run(msg["device_id"]))
 
 
 @websocket_api.require_admin
@@ -366,9 +363,7 @@ def ws_backups(hass: HomeAssistant, connection: Any, msg: dict[str, Any]) -> Non
 )
 @websocket_api.async_response
 async def ws_backup_create(hass: HomeAssistant, connection: Any, msg: dict[str, Any]) -> None:
-    connection.send_result(
-        msg["id"], await _runtime(hass).backups.async_create(msg["device_id"])
-    )
+    connection.send_result(msg["id"], await _runtime(hass).backups.async_create(msg["device_id"]))
 
 
 @websocket_api.require_admin
@@ -479,9 +474,7 @@ async def ws_migration_apply(hass: HomeAssistant, connection: Any, msg: dict[str
 )
 @websocket_api.async_response
 async def ws_scripts(hass: HomeAssistant, connection: Any, msg: dict[str, Any]) -> None:
-    connection.send_result(
-        msg["id"], await _runtime(hass).scripts.async_list(msg["device_id"])
-    )
+    connection.send_result(msg["id"], await _runtime(hass).scripts.async_list(msg["device_id"]))
 
 
 @websocket_api.require_admin
@@ -556,9 +549,7 @@ def ws_events(hass: HomeAssistant, connection: Any, msg: dict[str, Any]) -> None
 
 
 @websocket_api.require_admin
-@websocket_api.websocket_command(
-    {vol.Required("type"): "shelly_toolkit/events/subscribe"}
-)
+@websocket_api.websocket_command({vol.Required("type"): "shelly_toolkit/events/subscribe"})
 @callback
 def ws_subscribe_events(hass: HomeAssistant, connection: Any, msg: dict[str, Any]) -> None:
     unsubscribe = _runtime(hass).events.subscribe(

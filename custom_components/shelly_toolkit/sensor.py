@@ -7,9 +7,9 @@ from typing import Any
 
 from homeassistant.components.sensor import SensorDeviceClass, SensorEntity, SensorStateClass
 from homeassistant.const import (
-    EntityCategory,
     LIGHT_LUX,
     PERCENTAGE,
+    EntityCategory,
     UnitOfApparentPower,
     UnitOfElectricCurrent,
     UnitOfElectricPotential,
@@ -99,29 +99,57 @@ def measurement_metadata(path: tuple[str, ...]) -> MeasurementMetadata:
     leaf = path[-1].lower()
     joined = ".".join(path).lower()
     if leaf in {"tc", "temperature"} or "temperature" in leaf:
-        return MeasurementMetadata(UnitOfTemperature.CELSIUS, SensorDeviceClass.TEMPERATURE, SensorStateClass.MEASUREMENT)
+        return MeasurementMetadata(
+            UnitOfTemperature.CELSIUS, SensorDeviceClass.TEMPERATURE, SensorStateClass.MEASUREMENT
+        )
     if leaf == "tf":
-        return MeasurementMetadata(UnitOfTemperature.FAHRENHEIT, SensorDeviceClass.TEMPERATURE, SensorStateClass.MEASUREMENT)
+        return MeasurementMetadata(
+            UnitOfTemperature.FAHRENHEIT,
+            SensorDeviceClass.TEMPERATURE,
+            SensorStateClass.MEASUREMENT,
+        )
     if leaf in {"rh", "humidity"} or "humidity" in leaf:
-        return MeasurementMetadata(PERCENTAGE, SensorDeviceClass.HUMIDITY, SensorStateClass.MEASUREMENT)
+        return MeasurementMetadata(
+            PERCENTAGE, SensorDeviceClass.HUMIDITY, SensorStateClass.MEASUREMENT
+        )
     if "voltage" in leaf:
-        return MeasurementMetadata(UnitOfElectricPotential.VOLT, SensorDeviceClass.VOLTAGE, SensorStateClass.MEASUREMENT)
+        return MeasurementMetadata(
+            UnitOfElectricPotential.VOLT, SensorDeviceClass.VOLTAGE, SensorStateClass.MEASUREMENT
+        )
     if "current" in leaf:
-        return MeasurementMetadata(UnitOfElectricCurrent.AMPERE, SensorDeviceClass.CURRENT, SensorStateClass.MEASUREMENT)
+        return MeasurementMetadata(
+            UnitOfElectricCurrent.AMPERE, SensorDeviceClass.CURRENT, SensorStateClass.MEASUREMENT
+        )
     if "energy" in joined or (leaf == "total" and "energy" in joined):
-        return MeasurementMetadata(UnitOfEnergy.WATT_HOUR, SensorDeviceClass.ENERGY, SensorStateClass.TOTAL_INCREASING)
+        return MeasurementMetadata(
+            UnitOfEnergy.WATT_HOUR, SensorDeviceClass.ENERGY, SensorStateClass.TOTAL_INCREASING
+        )
     if "aprt" in leaf or "apparent" in leaf:
-        return MeasurementMetadata(UnitOfApparentPower.VOLT_AMPERE, SensorDeviceClass.APPARENT_POWER, SensorStateClass.MEASUREMENT)
+        return MeasurementMetadata(
+            UnitOfApparentPower.VOLT_AMPERE,
+            SensorDeviceClass.APPARENT_POWER,
+            SensorStateClass.MEASUREMENT,
+        )
     if "power" in leaf:
-        return MeasurementMetadata(UnitOfPower.WATT, SensorDeviceClass.POWER, SensorStateClass.MEASUREMENT)
+        return MeasurementMetadata(
+            UnitOfPower.WATT, SensorDeviceClass.POWER, SensorStateClass.MEASUREMENT
+        )
     if leaf in {"freq", "frequency"} or "frequency" in leaf:
-        return MeasurementMetadata(UnitOfFrequency.HERTZ, SensorDeviceClass.FREQUENCY, SensorStateClass.MEASUREMENT)
+        return MeasurementMetadata(
+            UnitOfFrequency.HERTZ, SensorDeviceClass.FREQUENCY, SensorStateClass.MEASUREMENT
+        )
     if leaf in {"lux", "illuminance"}:
-        return MeasurementMetadata(LIGHT_LUX, SensorDeviceClass.ILLUMINANCE, SensorStateClass.MEASUREMENT)
+        return MeasurementMetadata(
+            LIGHT_LUX, SensorDeviceClass.ILLUMINANCE, SensorStateClass.MEASUREMENT
+        )
     if "pressure" in leaf:
-        return MeasurementMetadata(UnitOfPressure.HPA, SensorDeviceClass.ATMOSPHERIC_PRESSURE, SensorStateClass.MEASUREMENT)
+        return MeasurementMetadata(
+            UnitOfPressure.HPA, SensorDeviceClass.ATMOSPHERIC_PRESSURE, SensorStateClass.MEASUREMENT
+        )
     if leaf in {"battery", "battery_pct", "percent", "soc"}:
-        return MeasurementMetadata(PERCENTAGE, SensorDeviceClass.BATTERY, SensorStateClass.MEASUREMENT)
+        return MeasurementMetadata(
+            PERCENTAGE, SensorDeviceClass.BATTERY, SensorStateClass.MEASUREMENT
+        )
     if leaf in {"rssi", "uptime", "ram_free", "ram_size", "fs_free", "fs_size"}:
         return MeasurementMetadata(entity_category=EntityCategory.DIAGNOSTIC)
     return MeasurementMetadata(state_class=SensorStateClass.MEASUREMENT)

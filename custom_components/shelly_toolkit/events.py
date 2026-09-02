@@ -2,10 +2,10 @@
 
 from __future__ import annotations
 
-from collections import deque
-from collections.abc import Callable
 import json
 import time
+from collections import deque
+from collections.abc import Callable
 from typing import Any
 
 from .models import RpcEvent
@@ -32,7 +32,9 @@ class EventStore:
                 record = RpcEvent(
                     timestamp=float(item.get("ts", params.get("ts", time.time()))),
                     device_id=device_id,
-                    component=item.get("component") if isinstance(item.get("component"), str) else None,
+                    component=item.get("component")
+                    if isinstance(item.get("component"), str)
+                    else None,
                     event=str(item.get("event", "NotifyEvent")),
                     payload=dict(item),
                 )

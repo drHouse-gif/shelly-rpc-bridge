@@ -40,6 +40,4 @@ class MigrationEngine:
         if source_id == target_id:
             raise ValueError("Source and target must be different")
         backup = await self.backups.async_create(source_id, persist=True)
-        return await self.restore.async_apply(
-            backup, target_id, mode=mode, confirm=confirm
-        )
+        return await self.restore.async_apply(backup, target_id, mode=mode, confirm=confirm)

@@ -2,14 +2,14 @@
 
 from __future__ import annotations
 
-from types import SimpleNamespace
 import ipaddress
+from types import SimpleNamespace
 
 import pytest
 import voluptuous as vol
 
-from custom_components.shelly_toolkit.doctor import ShellyDoctor
 from custom_components.shelly_toolkit.device_manager import _is_safe_local_address
+from custom_components.shelly_toolkit.doctor import ShellyDoctor
 from custom_components.shelly_toolkit.models import CapabilitySet, ConnectionKind, ToolkitDevice
 from custom_components.shelly_toolkit.remote import (
     RemoteServer,
@@ -125,9 +125,7 @@ def test_service_schemas_reject_unsafe_input() -> None:
     with pytest.raises(vol.Invalid):
         RPC_SCHEMA({"device_id": "x", "method": "Shelly.GetStatus"})
     with pytest.raises(vol.Invalid):
-        RESTORE_SCHEMA(
-            {"backup_id": "one", "target_device_id": "local:test", "confirm": False}
-        )
+        RESTORE_SCHEMA({"backup_id": "one", "target_device_id": "local:test", "confirm": False})
     with pytest.raises(vol.Invalid):
         CLONE_SCHEMA(
             {

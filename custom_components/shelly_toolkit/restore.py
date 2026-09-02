@@ -57,9 +57,7 @@ class RestoreItem:
 class RestoreEngine:
     """Build previews first and never factory-reset or restore connectivity."""
 
-    def __init__(
-        self, manager: DeviceManager, backups: BackupEngine | None = None
-    ) -> None:
+    def __init__(self, manager: DeviceManager, backups: BackupEngine | None = None) -> None:
         self.manager = manager
         self.backups = backups
 
@@ -124,22 +122,20 @@ class RestoreEngine:
                     )
                     continue
                 clean_config = {
-                    field: value
-                    for field, value in config.items()
-                    if field not in {"id", "source"}
+                    field: value for field, value in config.items() if field not in {"id", "source"}
                 }
                 params: dict[str, Any] = {"config": clean_config}
                 if component_id.isdigit():
                     params["id"] = int(component_id)
                 items.append(
-                    RestoreItem(
-                        "component", key, RestoreStatus.READY, method=method, params=params
-                    )
+                    RestoreItem("component", key, RestoreStatus.READY, method=method, params=params)
                 )
         resources = backup["configuration"].get("resources", {})
         if isinstance(resources, dict):
             items.extend(self._plan_scripts(resources, target, exact))
-            items.extend(self._plan_list_resource(resources, target, "schedules", "Schedule.Create"))
+            items.extend(
+                self._plan_list_resource(resources, target, "schedules", "Schedule.Create")
+            )
             items.extend(self._plan_list_resource(resources, target, "webhooks", "Webhook.Create"))
         return {
             "mode": "exact" if exact and mode == "exact" else "smart",
@@ -189,7 +185,10 @@ class RestoreEngine:
                         str(item.get("name", "Migrated script")),
                         RestoreStatus.READY,
                         method="Script.CreateAndUpload",
-                        params={"name": str(item.get("name", "Migrated script")), "code": item["code"]},
+                        params={
+                            "name": str(item.get("name", "Migrated script")),
+                            "code": item["code"],
+                        },
                     )
                 )
             else:
@@ -278,9 +277,7 @@ class RestoreEngine:
                     created = await self.manager.async_call(
                         target_id, "Script.Create", {"name": item.params["name"]}
                     )
-                    if not isinstance(created, dict) or not isinstance(
-                        created.get("id"), int
-                    ):
+                    if not isinstance(created, dict) or not isinstance(created.get("id"), int):
                         raise RpcProtocolError("Script.Create returned no script ID")
                     await async_put_script_code(
                         self.manager,

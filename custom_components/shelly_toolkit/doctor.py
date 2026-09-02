@@ -47,10 +47,12 @@ class ShellyDoctor:
         findings: list[Finding] = []
         if not device.online:
             severity = Severity.ERROR
-            title = "Authentication failed" if device.last_error == "RpcAuthError" else "Device is offline"
-            findings.append(
-                Finding("connectivity", severity, title, evidence=device.last_error)
+            title = (
+                "Authentication failed"
+                if device.last_error == "RpcAuthError"
+                else "Device is offline"
             )
+            findings.append(Finding("connectivity", severity, title, evidence=device.last_error))
             self._sync_repairs(device_id, findings)
             result = self._result(device, findings)
             self._results[device_id] = result
@@ -72,11 +74,23 @@ class ShellyDoctor:
         wifi = device.status.get("wifi")
         if isinstance(wifi, dict) and isinstance(wifi.get("rssi"), (int, float)):
             rssi = float(wifi["rssi"])
-            severity = Severity.ERROR if rssi <= -85 else Severity.WARNING if rssi <= -70 else Severity.INFO
+            severity = (
+                Severity.ERROR
+                if rssi <= -85
+                else Severity.WARNING
+                if rssi <= -70
+                else Severity.INFO
+            )
             findings.append(Finding("wifi", severity, "Wi-Fi signal", rssi, "wifi.rssi"))
 
         for index, value in enumerate(_temperatures(device.status)):
-            severity = Severity.ERROR if value >= 85 else Severity.WARNING if value >= 70 else Severity.INFO
+            severity = (
+                Severity.ERROR
+                if value >= 85
+                else Severity.WARNING
+                if value >= 70
+                else Severity.INFO
+            )
             findings.append(
                 Finding(
                     f"temperature_{index}",
@@ -96,7 +110,13 @@ class ShellyDoctor:
                 free, total = sys_status.get(free_key), sys_status.get(total_key)
                 if isinstance(free, (int, float)) and isinstance(total, (int, float)) and total > 0:
                     percent = round(float(free) / float(total) * 100, 1)
-                    severity = Severity.ERROR if percent < 10 else Severity.WARNING if percent < 20 else Severity.INFO
+                    severity = (
+                        Severity.ERROR
+                        if percent < 10
+                        else Severity.WARNING
+                        if percent < 20
+                        else Severity.INFO
+                    )
                     findings.append(
                         Finding(free_key, severity, label, percent, f"sys.{free_key}/{total_key}")
                     )
@@ -140,7 +160,14 @@ class ShellyDoctor:
         try:
             result = await self.manager.async_call(device_id, "Script.List")
         except RpcError as err:
-            return [Finding("scripts", Severity.WARNING, "Could not inspect scripts", evidence=type(err).__name__)]
+            return [
+                Finding(
+                    "scripts",
+                    Severity.WARNING,
+                    "Could not inspect scripts",
+                    evidence=type(err).__name__,
+                )
+            ]
         if not isinstance(result, dict):
             return [
                 Finding(
@@ -197,7 +224,11 @@ class ShellyDoctor:
 
     def _result(self, device: Any, findings: list[Finding]) -> dict[str, Any]:
         penalty = sum(
-            25 if finding.severity is Severity.ERROR else 8 if finding.severity is Severity.WARNING else 0
+            25
+            if finding.severity is Severity.ERROR
+            else 8
+            if finding.severity is Severity.WARNING
+            else 0
             for finding in findings
         )
         return {

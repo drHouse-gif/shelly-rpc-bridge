@@ -5,7 +5,6 @@ from __future__ import annotations
 from typing import Any
 
 import voluptuous as vol
-
 from homeassistant.config_entries import ConfigEntry, ConfigFlow, ConfigFlowResult, OptionsFlow
 from homeassistant.core import callback
 
@@ -24,9 +23,7 @@ class ShellyToolkitConfigFlow(ConfigFlow, domain=DOMAIN):
         """Return fallback options flow."""
         return ShellyToolkitOptionsFlow()
 
-    async def async_step_user(
-        self, user_input: dict[str, Any] | None = None
-    ) -> ConfigFlowResult:
+    async def async_step_user(self, user_input: dict[str, Any] | None = None) -> ConfigFlowResult:
         """Confirm installation and independent-project disclaimer."""
         if self.hass.config_entries.async_entries(DOMAIN):
             return self.async_abort(reason="already_configured")
@@ -43,9 +40,7 @@ class ShellyToolkitConfigFlow(ConfigFlow, domain=DOMAIN):
 class ShellyToolkitOptionsFlow(OptionsFlow):
     """Keep a native path back to the richer admin-only panel."""
 
-    async def async_step_init(
-        self, user_input: dict[str, Any] | None = None
-    ) -> ConfigFlowResult:
+    async def async_step_init(self, user_input: dict[str, Any] | None = None) -> ConfigFlowResult:
         """Show informational form."""
         if user_input is not None:
             return self.async_create_entry(title="", data={})

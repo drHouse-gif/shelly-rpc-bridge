@@ -16,9 +16,7 @@ from custom_components.shelly_toolkit.const import (
 
 
 async def test_config_flow_creates_single_hub(hass) -> None:
-    result = await hass.config_entries.flow.async_init(
-        DOMAIN, context={"source": "user"}
-    )
+    result = await hass.config_entries.flow.async_init(DOMAIN, context={"source": "user"})
     assert result["type"] is FlowResultType.FORM
     assert result["step_id"] == "user"
     with patch(
@@ -37,9 +35,7 @@ async def test_config_flow_creates_single_hub(hass) -> None:
 
 async def test_config_flow_aborts_when_already_configured(hass) -> None:
     MockConfigEntry(domain=DOMAIN, data={}, unique_id=DOMAIN).add_to_hass(hass)
-    result = await hass.config_entries.flow.async_init(
-        DOMAIN, context={"source": "user"}
-    )
+    result = await hass.config_entries.flow.async_init(DOMAIN, context={"source": "user"})
     assert result["type"] is FlowResultType.ABORT
     assert result["reason"] == "already_configured"
 

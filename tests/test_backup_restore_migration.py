@@ -145,9 +145,7 @@ async def test_restore_preview_and_confirmed_apply() -> None:
     assert statuses["cover:0"] == "UNSUPPORTED"
     assert preview["summary"]["READY"] == 2
     with pytest.raises(ValueError, match="confirmation"):
-        await engine.async_apply(
-            backup_fixture(), manager.target.id, mode="smart", confirm=False
-        )
+        await engine.async_apply(backup_fixture(), manager.target.id, mode="smart", confirm=False)
     report = await engine.async_apply(
         backup_fixture(), manager.target.id, mode="smart", confirm=True
     )

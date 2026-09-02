@@ -66,9 +66,7 @@ async def async_setup(hass: HomeAssistant, config: ConfigType) -> bool:
     return True
 
 
-async def async_setup_entry(
-    hass: HomeAssistant, entry: ShellyToolkitConfigEntry
-) -> bool:
+async def async_setup_entry(hass: HomeAssistant, entry: ShellyToolkitConfigEntry) -> bool:
     """Set up the single Toolkit hub."""
     server: RemoteServer = hass.data[DOMAIN][DATA_REMOTE_SERVER]
     events = EventStore()
@@ -97,9 +95,7 @@ async def async_setup_entry(
     return True
 
 
-async def async_unload_entry(
-    hass: HomeAssistant, entry: ShellyToolkitConfigEntry
-) -> bool:
+async def async_unload_entry(hass: HomeAssistant, entry: ShellyToolkitConfigEntry) -> bool:
     """Unload entity platforms, sockets, and sidebar panel cleanly."""
     if not await hass.config_entries.async_unload_platforms(entry, PLATFORMS):
         return False

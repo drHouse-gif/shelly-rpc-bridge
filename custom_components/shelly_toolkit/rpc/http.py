@@ -55,9 +55,7 @@ class HttpRpcTransport:
         """Validate transport with the unauthenticated device-info method."""
         await self.async_call("Shelly.GetDeviceInfo")
 
-    async def async_call(
-        self, method: str, params: dict[str, Any] | None = None
-    ) -> Any:
+    async def async_call(self, method: str, params: dict[str, Any] | None = None) -> Any:
         """Call a Shelly RPC method."""
         validate_method(method)
         frame: dict[str, Any] = {

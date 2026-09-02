@@ -60,17 +60,13 @@ class ScriptStudio:
         if len(encoded) > MAX_SCRIPT_BYTES:
             raise ValueError("Script exceeds Toolkit's safe upload limit")
         previous = await self.async_get_code(device_id, script_id)
-        backup = await self.backups.async_create_script_backup(
-            device_id, script_id, name, previous
-        )
+        backup = await self.backups.async_create_script_backup(device_id, script_id, name, previous)
         status = await self.async_status(device_id, script_id)
         was_running = status.get("running") is True
         if was_running:
             await self.async_stop(device_id, script_id)
         try:
-            chunks = await async_put_script_code(
-                self.manager, device_id, script_id, code
-            )
+            chunks = await async_put_script_code(self.manager, device_id, script_id, code)
         finally:
             if was_running:
                 await self.async_start(device_id, script_id)
@@ -94,9 +90,7 @@ class ScriptStudio:
 
     async def async_status(self, device_id: str, script_id: int) -> dict[str, Any]:
         """Return status and real API-provided errors; Shelly has no generic log RPC."""
-        result = await self.manager.async_call(
-            device_id, "Script.GetStatus", {"id": script_id}
-        )
+        result = await self.manager.async_call(device_id, "Script.GetStatus", {"id": script_id})
         if not isinstance(result, dict):
             raise RpcProtocolError("Script.GetStatus returned an invalid response")
         return result
@@ -137,9 +131,7 @@ async def async_put_script_code(
         raise ValueError("Shelly Script code cannot be empty")
     was_running = False
     if manage_running:
-        status = await manager.async_call(
-            device_id, "Script.GetStatus", {"id": script_id}
-        )
+        status = await manager.async_call(device_id, "Script.GetStatus", {"id": script_id})
         if not isinstance(status, dict):
             raise RpcProtocolError("Script.GetStatus returned an invalid response")
         was_running = status.get("running") is True

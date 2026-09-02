@@ -2,10 +2,10 @@
 
 from __future__ import annotations
 
-from copy import deepcopy
-from datetime import UTC, datetime
 import json
 import secrets
+from copy import deepcopy
+from datetime import UTC, datetime
 from typing import Any
 
 from homeassistant.core import HomeAssistant
@@ -142,9 +142,7 @@ class BackupEngine:
         self.manager = manager
         self.repository = repository
 
-    async def async_create(
-        self, device_id: str, *, persist: bool = True
-    ) -> dict[str, Any]:
+    async def async_create(self, device_id: str, *, persist: bool = True) -> dict[str, Any]:
         """Create a full versioned backup."""
         device = await self.manager.async_refresh_device(device_id)
         if not device.online:
@@ -211,9 +209,7 @@ class BackupEngine:
             "configuration": {
                 "device": {},
                 "components": [],
-                "resources": {
-                    "scripts": [{"id": script_id, "name": name, "code": code}]
-                },
+                "resources": {"scripts": [{"id": script_id, "name": name, "code": code}]},
             },
             "redacted_paths": [],
         }
@@ -233,18 +229,14 @@ class BackupEngine:
                 continue
             record = dict(item)
             try:
-                record["code"] = await async_read_script_code(
-                    self.manager, device_id, item["id"]
-                )
+                record["code"] = await async_read_script_code(self.manager, device_id, item["id"])
             except RpcError as err:
                 record["code_error"] = type(err).__name__
             output.append(record)
         return output
 
 
-async def async_read_script_code(
-    manager: DeviceManager, device_id: str, script_id: int
-) -> str:
+async def async_read_script_code(manager: DeviceManager, device_id: str, script_id: int) -> str:
     """Read potentially chunked Script.GetCode output."""
     chunks: list[str] = []
     offset = 0
