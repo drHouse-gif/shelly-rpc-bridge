@@ -2,66 +2,87 @@
 
 from __future__ import annotations
 
-import hashlib
+import secrets
 from typing import Any
+from urllib.parse import urlencode, urlsplit, urlunsplit
 
 import voluptuous as vol
 
 from homeassistant.config_entries import ConfigFlow, ConfigFlowResult
-from homeassistant.const import CONF_TOKEN
+from homeassistant.helpers.network import NoURLAvailableError, get_url
 
-from .bridge import (
-    BridgeAuthError,
-    BridgeProtocolError,
-    BridgeUnavailable,
-    async_validate_connection,
-    normalize_relay_url,
-)
-from .const import CONF_RELAY_URL, CONF_SITE_TOKEN, DOMAIN
+from .const import CONF_DEVICE_TOKEN, CONF_DEVICE_URL, DOMAIN, WS_PATH
+
+
+def build_device_url(hass: Any, token: str) -> str:
+    """Build the best reachable WebSocket URL for a Shelly device."""
+    base_url = get_url(
+        hass,
+        allow_internal=True,
+        allow_external=True,
+        allow_cloud=True,
+        prefer_external=True,
+        prefer_cloud=True,
+    )
+    parsed = urlsplit(base_url)
+    scheme = "wss" if parsed.scheme == "https" else "ws"
+    return urlunsplit(
+        (scheme, parsed.netloc, WS_PATH, urlencode({"token": token}), "")
+    )
 
 
 class ShellyRpcBridgeConfigFlow(ConfigFlow, domain=DOMAIN):
-    """Configure a relay connection through the UI."""
+    """Generate a direct Shelly-to-Home-Assistant connection."""
 
-    VERSION = 1
+    VERSION = 2
+    MINOR_VERSION = 0
+
+    def __init__(self) -> None:
+        self._token: str | None = None
+        self._device_url: str | None = None
 
     async def async_step_user(
         self, user_input: dict[str, Any] | None = None
     ) -> ConfigFlowResult:
+        if self.hass.config_entries.async_entries(DOMAIN):
+            return self.async_abort(reason="already_configured")
+
         errors: dict[str, str] = {}
         if user_input is not None:
+            self._token = secrets.token_urlsafe(48)
             try:
-                relay_url = normalize_relay_url(user_input[CONF_RELAY_URL])
-                token = user_input[CONF_TOKEN]
-                site_id = await async_validate_connection(self.hass, relay_url, token)
-            except ValueError:
-                errors["base"] = "invalid_url"
-            except BridgeProtocolError:
-                errors["base"] = "invalid_protocol"
-            except BridgeAuthError:
-                errors["base"] = "invalid_auth"
-            except BridgeUnavailable:
-                errors["base"] = "cannot_connect"
+                self._device_url = build_device_url(self.hass, self._token)
+            except NoURLAvailableError:
+                self._token = None
+                errors["base"] = "no_url"
             else:
-                unique = hashlib.sha256(
-                    f"{relay_url}|{site_id}".encode()
-                ).hexdigest()
-                await self.async_set_unique_id(unique)
-                self._abort_if_unique_id_configured()
-                return self.async_create_entry(
-                    title=f"Shelly RPC Bridge — {site_id}",
-                    data={
-                        CONF_RELAY_URL: relay_url,
-                        CONF_SITE_TOKEN: token,
-                    },
-                )
+                return await self.async_step_generated()
 
-        schema = vol.Schema(
-            {
-                vol.Required(CONF_RELAY_URL): str,
-                vol.Required(CONF_TOKEN): str,
-            }
-        )
         return self.async_show_form(
-            step_id="user", data_schema=schema, errors=errors
+            step_id="user",
+            data_schema=vol.Schema({}),
+            errors=errors,
+        )
+
+    async def async_step_generated(
+        self, user_input: dict[str, Any] | None = None
+    ) -> ConfigFlowResult:
+        if self._token is None or self._device_url is None:
+            return await self.async_step_user()
+
+        if user_input is not None:
+            await self.async_set_unique_id(DOMAIN)
+            self._abort_if_unique_id_configured()
+            return self.async_create_entry(
+                title="Shelly RPC Bridge",
+                data={
+                    CONF_DEVICE_TOKEN: self._token,
+                    CONF_DEVICE_URL: self._device_url,
+                },
+            )
+
+        return self.async_show_form(
+            step_id="generated",
+            data_schema=vol.Schema({}),
+            description_placeholders={"shelly_url": self._device_url},
         )

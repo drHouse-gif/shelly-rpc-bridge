@@ -3,26 +3,19 @@
   "config": {
     "step": {
       "user": {
-        "title": "Connect Home Assistant to the relay",
-        "description": "Enter the public WSS relay address and the private Home Assistant token.",
-        "data": {
-          "relay_url": "Relay URL",
-          "token": "Home Assistant token"
-        },
-        "data_description": {
-          "relay_url": "For example: wss://relay.example.com/ha",
-          "token": "Use BRIDGE_HA_TOKEN, not the token entered in Shelly devices."
-        }
+        "title": "Generate a Shelly connection",
+        "description": "No relay, Docker, VPS, port mapping, or manual token is required. Press Submit to generate a private outbound WebSocket address for this Home Assistant instance."
+      },
+      "generated": {
+        "title": "Your Shelly WebSocket address",
+        "description": "Copy this exact address:\n\n`{shelly_url}`\n\nThen press Submit to finish adding the integration. In the Shelly web UI, open Settings → Connectivity → Outbound WebSocket, enable it, paste the address as the server URL, save, and connect."
       }
     },
     "error": {
-      "cannot_connect": "Cannot connect to the relay",
-      "invalid_auth": "The Home Assistant token was rejected",
-      "invalid_protocol": "The server is not a compatible Shelly RPC Bridge relay",
-      "invalid_url": "Enter a valid ws:// or wss:// URL ending in /ha"
+      "no_url": "Home Assistant could not determine a reachable URL. Configure an Internal or External URL in Home Assistant network settings and try again."
     },
     "abort": {
-      "already_configured": "This relay site is already configured"
+      "already_configured": "Shelly RPC Bridge is already configured."
     }
   }
 }

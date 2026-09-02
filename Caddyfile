@@ -1,4 +1,0 @@
-{$BRIDGE_DOMAIN} {
-    encode zstd gzip
-    reverse_proxy relay:8765
-}

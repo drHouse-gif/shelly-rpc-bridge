@@ -6,16 +6,15 @@ on:
   workflow_dispatch:
 
 jobs:
-  relay-tests:
+  python:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
         with:
           python-version: "3.13"
-      - run: pip install -r relay/requirements.txt
-      - run: python -m unittest discover -s tests -v
-      - run: python -m compileall -q custom_components relay
+      - run: python -m unittest tests.test_models -v
+      - run: python -m compileall -q custom_components
 
   hacs:
     runs-on: ubuntu-latest
