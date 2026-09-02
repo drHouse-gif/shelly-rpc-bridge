@@ -1,0 +1,28 @@
+{
+  "title": "Shelly RPC Bridge",
+  "config": {
+    "step": {
+      "user": {
+        "title": "Свързване на Home Assistant с relay сървъра",
+        "description": "Въведете публичния WSS адрес и личния Home Assistant токен.",
+        "data": {
+          "relay_url": "Relay адрес",
+          "token": "Home Assistant токен"
+        },
+        "data_description": {
+          "relay_url": "Например: wss://relay.example.com/ha",
+          "token": "Използвайте BRIDGE_HA_TOKEN, а не токена от Shelly устройствата."
+        }
+      }
+    },
+    "error": {
+      "cannot_connect": "Няма връзка с relay сървъра",
+      "invalid_auth": "Home Assistant токенът беше отхвърлен",
+      "invalid_protocol": "Сървърът не използва съвместим Shelly RPC Bridge протокол",
+      "invalid_url": "Въведете валиден ws:// или wss:// адрес, завършващ на /ha"
+    },
+    "abort": {
+      "already_configured": "Този relay site вече е добавен"
+    }
+  }
+}

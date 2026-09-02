@@ -1,0 +1,28 @@
+{
+  "title": "Shelly RPC Bridge",
+  "config": {
+    "step": {
+      "user": {
+        "title": "Connect Home Assistant to the relay",
+        "description": "Enter the public WSS relay address and the private Home Assistant token.",
+        "data": {
+          "relay_url": "Relay URL",
+          "token": "Home Assistant token"
+        },
+        "data_description": {
+          "relay_url": "For example: wss://relay.example.com/ha",
+          "token": "Use BRIDGE_HA_TOKEN, not the token entered in Shelly devices."
+        }
+      }
+    },
+    "error": {
+      "cannot_connect": "Cannot connect to the relay",
+      "invalid_auth": "The Home Assistant token was rejected",
+      "invalid_protocol": "The server is not a compatible Shelly RPC Bridge relay",
+      "invalid_url": "Enter a valid ws:// or wss:// URL ending in /ha"
+    },
+    "abort": {
+      "already_configured": "This relay site is already configured"
+    }
+  }
+}

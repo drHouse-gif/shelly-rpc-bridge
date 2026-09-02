@@ -1,0 +1,12 @@
+{
+  "domain": "shelly_rpc_bridge",
+  "name": "Shelly RPC Bridge",
+  "codeowners": ["@drHouse-gif"],
+  "config_flow": true,
+  "documentation": "https://github.com/drHouse-gif/shelly-rpc-bridge#readme",
+  "integration_type": "hub",
+  "iot_class": "cloud_push",
+  "issue_tracker": "https://github.com/drHouse-gif/shelly-rpc-bridge/issues",
+  "requirements": [],
+  "version": "0.1.0"
+}
