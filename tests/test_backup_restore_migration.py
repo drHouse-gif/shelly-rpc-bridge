@@ -144,7 +144,7 @@ async def test_backup_is_versioned_serializable_and_secret_free() -> None:
     assert "must-not-export" not in str(backup)
     assert "capability-secret" not in str(backup)
     assert "password" not in backup["configuration"]["device"]["mqtt"]
-    assert "configuration.device.mqtt.password" in backup["redacted_paths"]
+    assert "device.mqtt.password" in backup["redacted_paths"]
     assert "hidden" not in str(backup)
     assert repository.values[0]["id"] == backup["id"]
 

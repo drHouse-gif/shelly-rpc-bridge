@@ -74,14 +74,15 @@ class WebSocketRpcTransport:
             if self._socket is not None and not self._socket.closed and self.connected:
                 return
             await self._close_socket()
+            request_kwargs: dict[str, Any] = {
+                "heartbeat": 20,
+                "timeout": aiohttp.ClientWSTimeout(ws_receive=None, ws_close=5),
+                "max_msg_size": 1_048_576,
+            }
+            if self._use_ssl:
+                request_kwargs["ssl"] = self._verify_ssl
             try:
-                self._socket = await self._session.ws_connect(
-                    self.url,
-                    heartbeat=20,
-                    timeout=aiohttp.ClientWSTimeout(ws_receive=None, ws_close=5),
-                    ssl=self._verify_ssl if self._use_ssl else None,
-                    max_msg_size=1_048_576,
-                )
+                self._socket = await self._session.ws_connect(self.url, **request_kwargs)
             except (aiohttp.ClientError, asyncio.TimeoutError) as err:
                 self.last_error = type(err).__name__
                 raise RpcUnavailableError(f"Could not connect Shelly WebSocket: {err}") from err
