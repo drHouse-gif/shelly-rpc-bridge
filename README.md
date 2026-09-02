@@ -1,6 +1,8 @@
 # Shelly RPC Bridge
 
-Direct Shelly Gen2+ outbound WebSocket integration for Home Assistant.
+Independent remote connectivity bridge for Shelly Gen2+ devices and Home Assistant using outbound WebSocket RPC.
+
+> **Independent community project:** Shelly RPC Bridge is not affiliated with, endorsed by, sponsored by, or maintained by Shelly Group or Home Assistant. “Shelly” and “Home Assistant” are used only to identify compatibility with their respective products and platforms.
 
 ## Version 0.3.0 — multi-token direct bridge
 
