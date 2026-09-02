@@ -1,0 +1,17 @@
+{
+  "title": "Shelly Toolkit for Home Assistant",
+  "config": {
+    "step": {"user": {"title": "Set up Shelly Toolkit", "description": "Install the administrator-only toolkit for Shelly Gen2+ RPC maintenance, diagnostics, backups, migration, scripts, and events. Independent community project. Not affiliated with or endorsed by Shelly Group."}},
+    "abort": {"already_configured": "Shelly Toolkit is already configured."}
+  },
+  "options": {"step": {"init": {"title": "Shelly Toolkit settings", "description": "Use the Shelly Toolkit sidebar panel to manage devices, Remote Pair credentials, backups, scripts, and other toolkit functions."}}},
+  "issues": {"doctor_issue": {"title": "Shelly Toolkit found a device error", "description": "{device}: {problem}. Open the Shelly Toolkit Doctor for the evidence and current status."}},
+  "services": {
+    "rpc_call": {"name": "Call RPC method", "description": "Call an advertised Shelly RPC method on a known target.", "fields": {"device_id": {"name": "Toolkit device ID", "description": "The ID shown in the Shelly Toolkit Devices page."}, "method": {"name": "Method", "description": "A Shelly Gen2+ RPC method such as Shelly.GetStatus."}, "params": {"name": "Parameters", "description": "JSON object passed to the RPC method."}, "confirm": {"name": "Confirm destructive call", "description": "Must be enabled for known destructive RPC methods."}}},
+    "run_diagnostics": {"name": "Run diagnostics", "description": "Run evidence-based Shelly Doctor checks.", "fields": {"device_id": {"name": "Toolkit device ID", "description": "The target to inspect."}}},
+    "backup_device": {"name": "Back up device", "description": "Create and store a versioned, secret-redacted configuration backup.", "fields": {"device_id": {"name": "Toolkit device ID", "description": "The source target."}}},
+    "restore_device": {"name": "Restore device", "description": "Preview and apply compatible operations from a stored backup.", "fields": {"backup_id": {"name": "Backup ID", "description": "The stored Toolkit backup to restore."}, "target_device_id": {"name": "Target device ID", "description": "The target receiving compatible configuration."}, "mode": {"name": "Mode", "description": "Exact requires matching models; smart maps compatible capabilities."}, "confirm": {"name": "Confirm", "description": "Explicitly authorize target changes."}}},
+    "clone_device": {"name": "Clone or migrate device", "description": "Back up a source and apply compatible configuration to a different target.", "fields": {"source_device_id": {"name": "Source device ID", "description": "The device to back up."}, "target_device_id": {"name": "Target device ID", "description": "The device receiving compatible configuration."}, "mode": {"name": "Mode", "description": "Exact clone or capability-based smart migration."}, "confirm": {"name": "Confirm", "description": "Explicitly authorize target changes."}}},
+    "restart_script": {"name": "Restart script", "description": "Stop and start a Shelly Script on a known target.", "fields": {"device_id": {"name": "Toolkit device ID", "description": "The script host."}, "script_id": {"name": "Script ID", "description": "The numeric Shelly Script identifier."}}}
+  }
+}

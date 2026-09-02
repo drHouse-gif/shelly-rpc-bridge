@@ -1,0 +1,11 @@
+{
+  "services": {
+    "backup_device": {"service": "mdi:content-save"},
+    "clone_device": {"service": "mdi:content-copy"},
+    "restart_script": {"service": "mdi:restart"},
+    "restore_device": {"service": "mdi:backup-restore"},
+    "rpc_call": {"service": "mdi:console"},
+    "run_diagnostics": {"service": "mdi:stethoscope"}
+  }
+}
+

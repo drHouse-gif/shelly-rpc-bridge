@@ -1,0 +1,17 @@
+{
+  "title": "Shelly Toolkit for Home Assistant",
+  "config": {
+    "step": {"user": {"title": "Настройване на Shelly Toolkit", "description": "Инсталирайте администраторския набор за Shelly Gen2+ RPC поддръжка, диагностика, архиви, миграция, скриптове и събития. Независим community проект. Не е свързан или одобрен от Shelly Group."}},
+    "abort": {"already_configured": "Shelly Toolkit вече е конфигуриран."}
+  },
+  "options": {"step": {"init": {"title": "Настройки на Shelly Toolkit", "description": "Използвайте страничния панел Shelly Toolkit за устройства, Remote Pair, архиви, скриптове и останалите функции."}}},
+  "issues": {"doctor_issue": {"title": "Shelly Toolkit откри грешка в устройство", "description": "{device}: {problem}. Отворете Shelly Toolkit Doctor за доказателствата и текущото състояние."}},
+  "services": {
+    "rpc_call": {"name": "Извикване на RPC метод", "description": "Извиква Shelly RPC метод върху познато устройство.", "fields": {"device_id": {"name": "Toolkit device ID", "description": "ID от страницата Devices на Shelly Toolkit."}, "method": {"name": "Метод", "description": "Shelly Gen2+ RPC метод, например Shelly.GetStatus."}, "params": {"name": "Параметри", "description": "JSON обект с параметрите."}, "confirm": {"name": "Потвърждение", "description": "Задължително за познатите разрушителни RPC методи."}}},
+    "run_diagnostics": {"name": "Диагностика", "description": "Изпълнява Shelly Doctor проверки, базирани на реални данни.", "fields": {"device_id": {"name": "Toolkit device ID", "description": "Устройството за проверка."}}},
+    "backup_device": {"name": "Архивиране на устройство", "description": "Създава versioned архив с премахнати тайни.", "fields": {"device_id": {"name": "Toolkit device ID", "description": "Устройството източник."}}},
+    "restore_device": {"name": "Възстановяване на устройство", "description": "Преглежда и прилага съвместими операции от архив.", "fields": {"backup_id": {"name": "Backup ID", "description": "Запазеният Toolkit архив."}, "target_device_id": {"name": "Target device ID", "description": "Устройството, което получава конфигурацията."}, "mode": {"name": "Режим", "description": "Exact изисква еднакви модели; smart съпоставя capabilities."}, "confirm": {"name": "Потвърждение", "description": "Изрично разрешава промените по целта."}}},
+    "clone_device": {"name": "Клониране или миграция", "description": "Архивира източник и прилага съвместимата конфигурация върху друга цел.", "fields": {"source_device_id": {"name": "Source device ID", "description": "Устройството, което ще бъде архивирано."}, "target_device_id": {"name": "Target device ID", "description": "Устройството, което получава конфигурацията."}, "mode": {"name": "Режим", "description": "Точно клониране или capability-based умна миграция."}, "confirm": {"name": "Потвърждение", "description": "Изрично разрешава промените по целта."}}},
+    "restart_script": {"name": "Рестартиране на скрипт", "description": "Спира и стартира Shelly Script.", "fields": {"device_id": {"name": "Toolkit device ID", "description": "Устройството със скрипта."}, "script_id": {"name": "Script ID", "description": "Числовият идентификатор на Shelly Script."}}}
+  }
+}

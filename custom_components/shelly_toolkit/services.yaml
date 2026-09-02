@@ -1,0 +1,91 @@
+rpc_call:
+  fields:
+    device_id:
+      required: true
+      example: remote:shellyplus1pm-aabbccddeeff
+      selector:
+        text:
+    method:
+      required: true
+      example: Shelly.GetStatus
+      selector:
+        text:
+    params:
+      required: false
+      example: {}
+      selector:
+        object:
+    confirm:
+      required: false
+      default: false
+      selector:
+        boolean:
+run_diagnostics:
+  fields:
+    device_id:
+      required: true
+      selector:
+        text:
+backup_device:
+  fields:
+    device_id:
+      required: true
+      selector:
+        text:
+restore_device:
+  fields:
+    backup_id:
+      required: true
+      selector:
+        text:
+    target_device_id:
+      required: true
+      selector:
+        text:
+    mode:
+      required: false
+      default: smart
+      selector:
+        select:
+          options:
+            - exact
+            - smart
+    confirm:
+      required: true
+      selector:
+        boolean:
+clone_device:
+  fields:
+    source_device_id:
+      required: true
+      selector:
+        text:
+    target_device_id:
+      required: true
+      selector:
+        text:
+    mode:
+      required: false
+      default: smart
+      selector:
+        select:
+          options:
+            - exact
+            - smart
+    confirm:
+      required: true
+      selector:
+        boolean:
+restart_script:
+  fields:
+    device_id:
+      required: true
+      selector:
+        text:
+    script_id:
+      required: true
+      selector:
+        number:
+          min: 1
+          mode: box
+
