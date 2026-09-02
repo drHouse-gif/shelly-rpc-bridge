@@ -37,8 +37,10 @@ targets. Push-connected remote devices update state and events immediately.
 
 ## Backup safety
 
-Backups are JSON objects with a schema version. Secret-like keys are removed at
-capture time, and network/auth configuration is never restored automatically.
+Backups are JSON objects with a schema version. Secret-like structured keys are
+removed at capture time, and network/auth configuration is never restored
+automatically. Script source is intentionally preserved for recovery, so a
+backup remains sensitive even after structured-field redaction.
 Backups are stored through Home Assistant's `.storage` abstraction and can be
 downloaded explicitly from the panel. Confirmed restore and migration capture a
 target safety backup before applying the first operation.

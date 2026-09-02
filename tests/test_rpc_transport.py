@@ -15,6 +15,7 @@ from custom_components.shelly_toolkit.rpc import (
     RpcTimeoutError,
     WebSocketRpcTransport,
 )
+from custom_components.shelly_toolkit.scripts import async_put_script_code
 
 
 @pytest.mark.parametrize("transport_class", [HttpRpcTransport, WebSocketRpcTransport])
@@ -47,8 +48,11 @@ async def test_http_timeout_and_malformed_response(fake_shelly) -> None:
         transport = HttpRpcTransport(session, fake_shelly.host, port=fake_shelly.port, timeout=0.03)
         with pytest.raises(RpcTimeoutError):
             await transport.async_call("Test.Timeout")
+        assert [item["method"] for item in fake_shelly.requests].count("Test.Timeout") == 1
         with pytest.raises(RpcProtocolError):
             await transport.async_call("Test.Malformed")
+        with pytest.raises(RpcProtocolError):
+            await transport.async_call("Test.WrongId")
 
 
 async def test_websocket_timeout_and_malformed_response(fake_shelly) -> None:
@@ -58,6 +62,7 @@ async def test_websocket_timeout_and_malformed_response(fake_shelly) -> None:
         )
         with pytest.raises(RpcTimeoutError):
             await transport.async_call("Test.Timeout")
+        assert [item["method"] for item in fake_shelly.requests].count("Test.Timeout") == 1
         with pytest.raises(RpcProtocolError):
             await transport.async_call("Test.Malformed")
         await transport.async_close()
@@ -100,6 +105,10 @@ async def test_websocket_digest_authentication(fake_shelly) -> None:
             password=fake_shelly.password,
         )
         assert (await good.async_call("Shelly.GetDeviceInfo"))["gen"] == 2
+        assert (await good.async_call("Shelly.GetStatus"))["sys"]["uptime"] == 100
+        authenticated = [item["auth"] for item in fake_shelly.requests if "auth" in item]
+        assert [item["nc"] for item in authenticated] == [1, 2]
+        assert all(isinstance(item["cnonce"], str) for item in authenticated)
         await good.async_close()
         bad = WebSocketRpcTransport(
             session, fake_shelly.host, port=fake_shelly.port, password="wrong"
@@ -107,3 +116,17 @@ async def test_websocket_digest_authentication(fake_shelly) -> None:
         with pytest.raises(RpcAuthError):
             await bad.async_call("Shelly.GetDeviceInfo")
         await bad.async_close()
+
+
+async def test_script_upload_is_read_back_and_verified(fake_shelly) -> None:
+    async with aiohttp.ClientSession() as session:
+        transport = HttpRpcTransport(session, fake_shelly.host, port=fake_shelly.port)
+
+        class Manager:
+            async def async_call(self, _device_id, method, params=None):
+                return await transport.async_call(method, params)
+
+        code = "// verified UTF-8\nprint('готово 😀')"
+        chunks = await async_put_script_code(Manager(), "local:test", 1, code)
+        assert "".join(chunks) == code
+        assert fake_shelly.script_codes[1] == code

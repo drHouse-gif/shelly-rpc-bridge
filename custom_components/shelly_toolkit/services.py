@@ -28,6 +28,7 @@ ATTR_MODE = "mode"
 ATTR_SCRIPT_ID = "script_id"
 
 DEVICE_ID = vol.All(str, vol.Length(min=3, max=160))
+SCRIPT_ID = vol.All(cv.positive_int, vol.Range(min=1))
 MODE = vol.In({"exact", "smart"})
 
 
@@ -66,7 +67,7 @@ CLONE_SCHEMA = vol.Schema(
 RESTART_SCRIPT_SCHEMA = vol.Schema(
     {
         vol.Required(ATTR_DEVICE_ID): DEVICE_ID,
-        vol.Required(ATTR_SCRIPT_ID): cv.positive_int,
+        vol.Required(ATTR_SCRIPT_ID): SCRIPT_ID,
     }
 )
 

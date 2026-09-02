@@ -7,7 +7,7 @@ migration, scripting, and remote connectivity.
 > Group.** “Shelly” and “Home Assistant” are used only to describe
 > compatibility. The project is maintained by **Dr. House** (`drHouse-gif`).
 
-Version **0.4.0** is an experimental pre-release intended for careful testing
+Version **0.4.1** is an experimental pre-release intended for careful testing
 on non-critical devices. It has extensive automated simulation coverage but
 has not yet been validated on physical Shelly hardware.
 
@@ -86,8 +86,10 @@ target must resolve only to private, non-loopback addresses and must answer
 and prevents arbitrary endpoints from being persisted.
 
 If its MAC matches an official-integration target, Toolkit discards the local
-duplicate and uses the official target. Toolkit does not create switch, light,
-cover, or sensor entities.
+duplicate and uses the official target. Toolkit creates capability-based
+switch, light, cover, sensor, and binary-sensor entities only for its own local
+and Remote Pair targets; it does not duplicate entities owned by the official
+Shelly integration.
 
 ## Remote Pair
 
@@ -147,7 +149,10 @@ added.
 
 Password, passphrase, token, secret, private-key, HA1, and similar fields are
 removed recursively before persistence or download. A redacted secret cannot
-be restored and must be configured separately.
+be restored and must be configured separately. Shelly Script source is
+preserved so it can be restored; because scripts can contain hard-coded
+credentials, every stored or downloaded backup must still be treated as
+sensitive.
 
 Restore always creates a preview with `READY`, `SKIPPED`, `UNSUPPORTED`, or
 `FAILED` operations. Network, authentication, system, and connectivity config

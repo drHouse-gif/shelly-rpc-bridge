@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import re
 import secrets
 from copy import deepcopy
 from datetime import UTC, datetime
@@ -35,7 +36,7 @@ def scrub_secrets(value: Any, path: str = "") -> tuple[Any, list[str]]:
             key = str(raw_key)
             child_path = f"{path}.{key}" if path else key
             lowered = key.lower()
-            component_identifier = lowered == "key" and path.startswith("components[")
+            component_identifier = lowered == "key" and re.fullmatch(r"components\[\d+\]", path)
             if not component_identifier and (
                 lowered in SECRET_KEYS
                 or any(
@@ -165,6 +166,10 @@ class BackupEngine:
             "resources": resources,
         }
         configuration, redacted = scrub_secrets(raw_configuration)
+        capabilities, capability_redacted = scrub_secrets(
+            device.capabilities.as_dict(), "capabilities"
+        )
+        redacted.extend(capability_redacted)
         backup = {
             "toolkit_backup_version": BACKUP_VERSION,
             "id": secrets.token_hex(12),
@@ -178,7 +183,7 @@ class BackupEngine:
                 "firmware": device.firmware,
                 "connection": device.connection.value,
             },
-            "capabilities": device.capabilities.as_dict(),
+            "capabilities": capabilities,
             "configuration": configuration,
             "redacted_paths": sorted(redacted),
         }
@@ -192,6 +197,7 @@ class BackupEngine:
     ) -> dict[str, Any]:
         """Persist a small backup immediately before script overwrite."""
         device = self.manager.get_device(device_id)
+        capabilities, redacted = scrub_secrets(device.capabilities.as_dict(), "capabilities")
         backup = {
             "toolkit_backup_version": BACKUP_VERSION,
             "id": secrets.token_hex(12),
@@ -205,13 +211,13 @@ class BackupEngine:
                 "firmware": device.firmware,
                 "connection": device.connection.value,
             },
-            "capabilities": device.capabilities.as_dict(),
+            "capabilities": capabilities,
             "configuration": {
                 "device": {},
                 "components": [],
                 "resources": {"scripts": [{"id": script_id, "name": name, "code": code}]},
             },
-            "redacted_paths": [],
+            "redacted_paths": sorted(redacted),
         }
         await self.repository.async_add(backup)
         return backup

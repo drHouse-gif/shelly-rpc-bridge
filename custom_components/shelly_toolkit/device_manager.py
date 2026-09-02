@@ -28,6 +28,7 @@ from .const import (
     DEFAULT_PORT,
     DOMAIN,
     HA_EVENT,
+    MAX_DEVICES,
     TRANSPORT_HTTP,
 )
 from .events import EventStore
@@ -290,13 +291,25 @@ class DeviceManager:
         method = frame.get("method")
         params = frame.get("params")
         if isinstance(params, dict):
-            if method in {"NotifyStatus", "NotifyFullStatus"}:
+            if method == "NotifyFullStatus":
+                device.status = {
+                    key: deepcopy(value)
+                    for key, value in params.items()
+                    if isinstance(value, dict) and key not in {"ts", "rev"}
+                }
+            elif method == "NotifyStatus":
                 for key, value in params.items():
                     if isinstance(value, dict) and key not in {"ts", "rev"}:
                         current = device.status.setdefault(key, {})
                         if isinstance(current, dict):
                             current.update(value)
-            elif method in {"NotifyConfig", "NotifyFullConfig"}:
+            elif method == "NotifyFullConfig":
+                device.config = {
+                    key: deepcopy(value)
+                    for key, value in params.items()
+                    if isinstance(value, dict) and key not in {"ts", "rev"}
+                }
+            elif method == "NotifyConfig":
                 for key, value in params.items():
                     if isinstance(value, dict) and key not in {"ts", "rev"}:
                         current = device.config.setdefault(key, {})
@@ -358,9 +371,22 @@ class DeviceManager:
         """Validate a target is Shelly Gen2+ before persisting it."""
         candidate = dict(config)
         candidate["id"] = f"local:{secrets.token_hex(8)}"
-        await _async_validate_local_target(
-            str(candidate[CONF_HOST]), int(candidate.get(CONF_PORT, DEFAULT_PORT))
-        )
+        local = [
+            dict(item)
+            for item in self.entry.data.get(CONF_LOCAL_DEVICES, [])
+            if isinstance(item, dict)
+        ]
+        candidate_host = str(candidate[CONF_HOST]).rstrip(".").lower()
+        candidate_port = int(candidate.get(CONF_PORT, DEFAULT_PORT))
+        if any(
+            str(item.get(CONF_HOST, "")).rstrip(".").lower() == candidate_host
+            and int(item.get(CONF_PORT, DEFAULT_PORT)) == candidate_port
+            for item in local
+        ):
+            raise ValueError("A local target with this host and port already exists")
+        if len(self._local_ids | self._remote_ids) >= MAX_DEVICES:
+            raise ValueError("Shelly Toolkit device limit reached")
+        await _async_validate_local_target(str(candidate[CONF_HOST]), candidate_port)
         transport = self._transport_from_local(candidate)
         try:
             info = await transport.async_call("Shelly.GetDeviceInfo")
@@ -370,30 +396,25 @@ class DeviceManager:
                 raise RpcUnavailableError("Target is not a Shelly Gen2+ device")
         finally:
             await transport.async_close()
+        advertised_mac = info.get("mac")
+        normalized_mac = (
+            "".join(char for char in advertised_mac if char.isalnum()).upper()
+            if isinstance(advertised_mac, str)
+            else None
+        )
+        if normalized_mac:
+            duplicate = next(
+                (item for item in self.devices.values() if item.mac == normalized_mac), None
+            )
+            if duplicate is not None:
+                if duplicate.connection is ConnectionKind.OFFICIAL:
+                    return duplicate
+                raise ValueError("This Shelly device is already registered")
         candidate["name"] = str(candidate.get("name") or info.get("name") or info.get("id"))
-        local = [
-            dict(item)
-            for item in self.entry.data.get(CONF_LOCAL_DEVICES, [])
-            if isinstance(item, dict)
-        ]
         local.append(candidate)
         self._update_entry_data(CONF_LOCAL_DEVICES, local)
         device_id = self._create_local(candidate)
         device = await self.async_refresh_device(device_id)
-        # An official target with the same MAC is already the preferred non-duplicate path.
-        official = next(
-            (
-                item
-                for item in self.devices.values()
-                if item.connection is ConnectionKind.OFFICIAL
-                and item.mac
-                and item.mac == device.mac
-            ),
-            None,
-        )
-        if official is not None:
-            await self.async_remove_local(device_id)
-            return official
         return device
 
     async def async_remove_local(self, device_id: str) -> None:
@@ -402,6 +423,9 @@ class DeviceManager:
             raise KeyError(device_id)
         if (transport := self.transports.pop(device_id, None)) is not None:
             await transport.async_close()
+        if (device := self.devices.get(device_id)) is not None:
+            device.online = False
+            self._notify_components(device)
         self.devices.pop(device_id, None)
         self._local_ids.discard(device_id)
         local = [
@@ -427,7 +451,12 @@ class DeviceManager:
 
     def list_devices(self) -> list[dict[str, Any]]:
         """Return stable, panel-safe inventory."""
-        return [self.devices[key].as_dict() for key in sorted(self.devices)]
+        # Capability snapshots may contain component config. Apply the same
+        # recursive scrub used by backups before crossing the panel/diagnostic API.
+        from .backup import scrub_secrets
+
+        devices, _ = scrub_secrets([self.devices[key].as_dict() for key in sorted(self.devices)])
+        return devices
 
     def _sync_registry(self, device: ToolkitDevice) -> None:
         if device.connection is ConnectionKind.OFFICIAL:

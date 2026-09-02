@@ -97,6 +97,7 @@ class ToolkitEntity(Entity):
     ) -> None:
         self.runtime = runtime
         self.device_id = device.id
+        self._last_device = device
         self.component_key = component.key
         safe_device = device.id.replace(":", "_")
         safe_component = component.key.replace(":", "_")
@@ -106,7 +107,7 @@ class ToolkitEntity(Entity):
 
     @property
     def device(self) -> ToolkitDevice:
-        return self.runtime.manager.devices[self.device_id]
+        return self.runtime.manager.devices.get(self.device_id, self._last_device)
 
     @property
     def component(self) -> ToolkitComponent:

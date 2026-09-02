@@ -58,8 +58,9 @@ class HttpRpcTransport:
     async def async_call(self, method: str, params: dict[str, Any] | None = None) -> Any:
         """Call a Shelly RPC method."""
         validate_method(method)
+        request_id = next(self._ids)
         frame: dict[str, Any] = {
-            "id": next(self._ids),
+            "id": request_id,
             "src": "shelly_toolkit",
             "method": method,
         }
@@ -98,6 +99,8 @@ class HttpRpcTransport:
             raise RpcUnavailableError(f"Could not reach Shelly: {err}") from err
         if not isinstance(payload, dict):
             raise RpcProtocolError("RPC response must be a JSON object")
+        if payload.get("id") != request_id:
+            raise RpcProtocolError("RPC response ID does not match the request")
         if isinstance(error := payload.get("error"), dict):
             raise RpcResponseError(error.get("code"), str(error.get("message", error)))
         if "result" not in payload:

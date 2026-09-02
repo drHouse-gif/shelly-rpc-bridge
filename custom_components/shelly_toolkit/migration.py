@@ -25,7 +25,7 @@ class MigrationEngine:
         result = await self.restore.async_preview(backup, target_id, mode=mode)
         result["source_id"] = source_id
         result["target_id"] = target_id
-        result["backup"] = backup
+        result["source"] = backup["device"]
         return result
 
     async def async_apply(

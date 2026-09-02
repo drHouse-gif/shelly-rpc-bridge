@@ -3,8 +3,10 @@
 from __future__ import annotations
 
 import asyncio
+import base64
 import hashlib
 import json
+import logging
 import secrets
 from itertools import count
 from typing import Any
@@ -19,6 +21,8 @@ from .errors import (
     RpcTimeoutError,
     RpcUnavailableError,
 )
+
+LOGGER = logging.getLogger(__name__)
 
 
 class WebSocketRpcTransport:
@@ -48,6 +52,7 @@ class WebSocketRpcTransport:
         self._socket: aiohttp.ClientWebSocketResponse | None = None
         self._reader: asyncio.Task[None] | None = None
         self._connect_lock = asyncio.Lock()
+        self._auth_lock = asyncio.Lock()
         self._pending: dict[int, asyncio.Future[Any]] = {}
         self._event_callback: EventCallback | None = None
         self._challenge: dict[str, Any] | None = None
@@ -87,6 +92,15 @@ class WebSocketRpcTransport:
     async def async_call(self, method: str, params: dict[str, Any] | None = None) -> Any:
         """Call an RPC method, reconnecting once after transport failure."""
         validate_method(method)
+        if self._password:
+            # Shelly digest authentication uses a monotonically increasing nonce count.
+            # Keep authenticated calls ordered so two callers cannot reuse or reorder it.
+            async with self._auth_lock:
+                return await self._async_call(method, params)
+        return await self._async_call(method, params)
+
+    async def _async_call(self, method: str, params: dict[str, Any] | None) -> Any:
+        """Call with authentication/reconnect retries already serialized if needed."""
         for attempt in range(2):
             try:
                 await self.async_connect()
@@ -99,8 +113,11 @@ class WebSocketRpcTransport:
                     self.last_error = "authentication_failed"
                     raise RpcAuthError("Shelly authentication failed") from err
                 self._set_challenge(err.message)
+            except RpcTimeoutError:
+                # The device may have executed a timed-out request. Never replay it.
+                raise
             except RpcUnavailableError:
-                if attempt:
+                if attempt or not _is_retry_safe(method):
                     raise
                 await self._close_socket()
         raise RpcUnavailableError("RPC call failed")
@@ -160,6 +177,8 @@ class WebSocketRpcTransport:
                 request_id = frame.get("id")
                 if isinstance(request_id, int) and request_id in self._pending:
                     future = self._pending[request_id]
+                    if future.done():
+                        continue
                     if isinstance(error := frame.get("error"), dict):
                         future.set_exception(
                             RpcResponseError(error.get("code"), str(error.get("message", error)))
@@ -170,9 +189,12 @@ class WebSocketRpcTransport:
                         future.set_exception(RpcProtocolError("Malformed RPC response"))
                     continue
                 if isinstance(frame.get("method"), str) and self._event_callback is not None:
-                    callback_result = self._event_callback(frame)
-                    if asyncio.iscoroutine(callback_result):
-                        await callback_result
+                    try:
+                        callback_result = self._event_callback(frame)
+                        if asyncio.iscoroutine(callback_result):
+                            await callback_result
+                    except Exception:
+                        LOGGER.exception("Shelly notification callback failed")
         finally:
             self.connected = False
             for future in tuple(self._pending.values()):
@@ -192,19 +214,27 @@ class WebSocketRpcTransport:
             or not challenge.get("realm")
         ):
             raise RpcAuthError("Incomplete Shelly authentication challenge")
+        if challenge.get("algorithm") != "SHA-256":
+            raise RpcAuthError("Unsupported Shelly authentication algorithm")
+        try:
+            nonce_count = int(challenge.get("nc", 1))
+        except (TypeError, ValueError) as err:
+            raise RpcAuthError("Invalid Shelly authentication nonce count") from err
+        if nonce_count < 1:
+            raise RpcAuthError("Invalid Shelly authentication nonce count")
         self._challenge = challenge
-        self._nonce_count = 0
+        self._nonce_count = nonce_count
 
     def _build_auth(self) -> dict[str, Any]:
         assert self._challenge is not None and self._password is not None
-        self._nonce_count += 1
         realm = str(self._challenge["realm"])
         nonce = self._challenge["nonce"]
-        nc = f"{self._nonce_count:08x}"
-        cnonce = secrets.randbelow(2_147_483_647)
+        nc = self._nonce_count
+        cnonce = base64.b64encode(secrets.token_bytes(16)).decode("ascii")
         ha1 = hashlib.sha256(f"{self._username}:{realm}:{self._password}".encode()).hexdigest()
         ha2 = hashlib.sha256(b"dummy_method:dummy_uri").hexdigest()
         response = hashlib.sha256(f"{ha1}:{nonce}:{nc}:{cnonce}:auth:{ha2}".encode()).hexdigest()
+        self._nonce_count += 1
         return {
             "realm": realm,
             "username": self._username,
@@ -240,3 +270,9 @@ class WebSocketRpcTransport:
     def set_event_callback(self, callback: EventCallback | None) -> None:
         """Set notification callback."""
         self._event_callback = callback
+
+
+def _is_retry_safe(method: str) -> bool:
+    """Return whether reconnecting can safely replay this read-only RPC method."""
+    operation = method.rsplit(".", 1)[-1]
+    return operation.startswith(("Get", "List"))

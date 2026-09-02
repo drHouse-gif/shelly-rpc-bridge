@@ -32,6 +32,7 @@ from .const import (
 )
 from .remote import new_remote_credential, normalize_credentials
 from .rpc import validate_method
+from .services import SCRIPT_ID
 
 
 def _runtime(hass: HomeAssistant) -> Any:
@@ -194,7 +195,8 @@ def ws_devices(hass: HomeAssistant, connection: Any, msg: dict[str, Any]) -> Non
 async def ws_refresh(hass: HomeAssistant, connection: Any, msg: dict[str, Any]) -> None:
     runtime = _runtime(hass)
     if device_id := msg.get("device_id"):
-        result = (await runtime.manager.async_refresh_device(device_id)).as_dict()
+        refreshed = await runtime.manager.async_refresh_device(device_id)
+        result = next(item for item in runtime.manager.list_devices() if item["id"] == refreshed.id)
     else:
         result = await runtime.manager.async_refresh_all()
     connection.send_result(msg["id"], result)
@@ -219,8 +221,10 @@ async def ws_refresh(hass: HomeAssistant, connection: Any, msg: dict[str, Any]) 
 @websocket_api.async_response
 async def ws_local_add(hass: HomeAssistant, connection: Any, msg: dict[str, Any]) -> None:
     config = {key: value for key, value in msg.items() if key not in {"id", "type"}}
-    device = await _runtime(hass).manager.async_add_local(config)
-    connection.send_result(msg["id"], device.as_dict())
+    manager = _runtime(hass).manager
+    device = await manager.async_add_local(config)
+    result = next(item for item in manager.list_devices() if item["id"] == device.id)
+    connection.send_result(msg["id"], result)
 
 
 @websocket_api.require_admin
@@ -482,7 +486,7 @@ async def ws_scripts(hass: HomeAssistant, connection: Any, msg: dict[str, Any]) 
     {
         vol.Required("type"): "shelly_toolkit/script/code",
         vol.Required("device_id"): str,
-        vol.Required("script_id"): cv.positive_int,
+        vol.Required("script_id"): SCRIPT_ID,
     }
 )
 @websocket_api.async_response
@@ -496,7 +500,7 @@ async def ws_script_code(hass: HomeAssistant, connection: Any, msg: dict[str, An
     {
         vol.Required("type"): "shelly_toolkit/script/upload",
         vol.Required("device_id"): str,
-        vol.Required("script_id"): cv.positive_int,
+        vol.Required("script_id"): SCRIPT_ID,
         vol.Required("code"): str,
         vol.Optional("name", default="Shelly Script"): str,
         vol.Required("confirm"): vol.Equal(True),
@@ -515,7 +519,7 @@ async def ws_script_upload(hass: HomeAssistant, connection: Any, msg: dict[str, 
     {
         vol.Required("type"): "shelly_toolkit/script/control",
         vol.Required("device_id"): str,
-        vol.Required("script_id"): cv.positive_int,
+        vol.Required("script_id"): SCRIPT_ID,
         vol.Required("action"): vol.In({"start", "stop", "restart", "status"}),
     }
 )

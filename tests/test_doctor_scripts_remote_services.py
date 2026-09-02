@@ -13,10 +13,12 @@ from custom_components.shelly_toolkit.doctor import ShellyDoctor
 from custom_components.shelly_toolkit.models import CapabilitySet, ConnectionKind, ToolkitDevice
 from custom_components.shelly_toolkit.remote import (
     RemoteServer,
+    _validate_identity_response,
     hash_remote_secret,
     new_remote_credential,
     normalize_credentials,
 )
+from custom_components.shelly_toolkit.rpc import RpcProtocolError
 from custom_components.shelly_toolkit.scripts import _utf8_chunks
 from custom_components.shelly_toolkit.services import (
     CLONE_SCHEMA,
@@ -116,6 +118,18 @@ def test_remote_credentials_are_hashed_bound_and_revocable() -> None:
     )
     assert "token" not in migrated[0]
     assert migrated[0]["secret_hash"] == hash_remote_secret("plaintext-token")
+
+
+def test_remote_identity_must_be_a_matching_gen2_response() -> None:
+    frame = {
+        "src": "shellyplus1pm-test",
+        "result": {"id": "shellyplus1pm-test", "gen": 2, "model": "SNSW-001P16EU"},
+    }
+    assert _validate_identity_response(frame)[0] == "shellyplus1pm-test"
+    with pytest.raises(RpcProtocolError, match="does not match"):
+        _validate_identity_response({**frame, "src": "another-device"})
+    with pytest.raises(RpcProtocolError, match="Gen2"):
+        _validate_identity_response({"result": {"id": "shelly-test", "gen": 1}})
 
 
 def test_service_schemas_reject_unsafe_input() -> None:

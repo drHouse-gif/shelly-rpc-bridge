@@ -37,7 +37,7 @@ async def test_config_flow_aborts_when_already_configured(hass) -> None:
     MockConfigEntry(domain=DOMAIN, data={}, unique_id=DOMAIN).add_to_hass(hass)
     result = await hass.config_entries.flow.async_init(DOMAIN, context={"source": "user"})
     assert result["type"] is FlowResultType.ABORT
-    assert result["reason"] == "already_configured"
+    assert result["reason"] == "single_instance_allowed"
 
 
 async def test_setup_reload_and_unload_empty_runtime(hass) -> None:

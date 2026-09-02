@@ -145,6 +145,9 @@ async def async_put_script_code(
                 "Script.PutCode",
                 {"id": script_id, "code": chunk, "append": index > 0},
             )
+        uploaded = await async_read_script_code(manager, device_id, script_id)
+        if uploaded != code:
+            raise RpcProtocolError("Shelly Script upload verification failed")
     finally:
         if was_running:
             await manager.async_call(device_id, "Script.Start", {"id": script_id})

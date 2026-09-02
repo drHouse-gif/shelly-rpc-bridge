@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import asyncio
+import base64
 import hashlib
 import json
 import re
@@ -28,6 +29,7 @@ class FakeShellyRpcServer:
         self.disconnect_once = False
         self._did_disconnect = False
         self.requests: list[dict[str, Any]] = []
+        self.script_codes = {1: "print('ok')"}
         self.methods = [
             "Shelly.GetDeviceInfo",
             "Shelly.GetStatus",
@@ -74,6 +76,8 @@ class FakeShellyRpcServer:
             await asyncio.sleep(1)
         if method == "Test.Malformed":
             return web.Response(text="{broken", content_type="application/json")
+        if method == "Test.WrongId":
+            return web.json_response({"id": frame["id"] + 1, "result": {}})
         if method == "Test.Error":
             return web.json_response(
                 {"id": frame["id"], "error": {"code": -103, "message": "Unsupported"}}
@@ -88,6 +92,7 @@ class FakeShellyRpcServer:
         socket = web.WebSocketResponse()
         await socket.prepare(request)
         tasks: set[asyncio.Task[None]] = set()
+        auth_state = {"nc": 1}
         async for message in socket:
             if message.type is not WSMsgType.TEXT:
                 continue
@@ -97,25 +102,39 @@ class FakeShellyRpcServer:
                 self._did_disconnect = True
                 await socket.close()
                 break
-            task = asyncio.create_task(self._ws_response(socket, frame))
+            task = asyncio.create_task(self._ws_response(socket, frame, auth_state))
             tasks.add(task)
             task.add_done_callback(tasks.discard)
         if tasks:
             await asyncio.gather(*tasks, return_exceptions=True)
         return socket
 
-    async def _ws_response(self, socket: web.WebSocketResponse, frame: dict[str, Any]) -> None:
+    async def _ws_response(
+        self,
+        socket: web.WebSocketResponse,
+        frame: dict[str, Any],
+        auth_state: dict[str, int],
+    ) -> None:
         method = frame.get("method")
-        if self.require_ws_auth and not self._valid_ws_auth(frame.get("auth")):
-            challenge = json.dumps({"realm": "shelly", "nonce": 123456789})
+        if self.require_ws_auth and not self._valid_ws_auth(frame.get("auth"), auth_state["nc"]):
+            challenge = json.dumps(
+                {
+                    "realm": "shelly",
+                    "nonce": 123456789,
+                    "algorithm": "SHA-256",
+                    "nc": auth_state["nc"],
+                }
+            )
             await socket.send_json(
                 {"id": frame["id"], "error": {"code": 401, "message": challenge}}
             )
             return
+        if self.require_ws_auth:
+            auth_state["nc"] += 1
         if method == "Test.Timeout":
             return
         if method == "Test.Malformed":
-            await socket.send_json({"id": frame["id"], "result": "not-an-object"})
+            await socket.send_json({"id": frame["id"]})
             return
         if method == "Test.Error":
             await socket.send_json(
@@ -132,6 +151,16 @@ class FakeShellyRpcServer:
         )
 
     def result(self, method: str, params: dict[str, Any] | None) -> dict[str, Any]:
+        if method == "Script.PutCode" and isinstance(params, dict):
+            script_id = int(params["id"])
+            code = str(params.get("code", ""))
+            if params.get("append"):
+                self.script_codes[script_id] = self.script_codes.get(script_id, "") + code
+            else:
+                self.script_codes[script_id] = code
+            return {"len": len(self.script_codes[script_id].encode())}
+        if method == "Script.GetCode" and isinstance(params, dict):
+            return {"data": self.script_codes.get(int(params["id"]), ""), "left": 0}
         responses: dict[str, dict[str, Any]] = {
             "Shelly.GetDeviceInfo": {
                 "id": "shellyplus1pm-test",
@@ -159,7 +188,6 @@ class FakeShellyRpcServer:
             },
             "Shelly.ListMethods": {"methods": self.methods},
             "Script.List": {"scripts": [{"id": 1, "name": "Example", "enable": True}]},
-            "Script.GetCode": {"data": "print('ok')", "left": 0},
         }
         return responses.get(method, {"echo": params or {}, "method": method})
 
@@ -181,8 +209,20 @@ class FakeShellyRpcServer:
         ).hexdigest()
         return fields["response"] == expected
 
-    def _valid_ws_auth(self, auth: Any) -> bool:
-        if not isinstance(auth, dict) or auth.get("username") != "admin":
+    def _valid_ws_auth(self, auth: Any, expected_nc: int) -> bool:
+        if (
+            not isinstance(auth, dict)
+            or auth.get("username") != "admin"
+            or auth.get("algorithm") != "SHA-256"
+            or auth.get("nc") != expected_nc
+            or not isinstance(auth.get("cnonce"), str)
+        ):
+            return False
+        try:
+            cnonce = base64.b64decode(auth["cnonce"], validate=True)
+        except ValueError:
+            return False
+        if len(cnonce) != 16:
             return False
         ha1 = hashlib.sha256(f"admin:shelly:{self.password}".encode()).hexdigest()
         ha2 = hashlib.sha256(b"dummy_method:dummy_uri").hexdigest()

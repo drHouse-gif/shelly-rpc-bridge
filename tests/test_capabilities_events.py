@@ -44,3 +44,17 @@ def test_event_store_is_bounded_and_filterable() -> None:
     assert len(observed) == 3
     assert [item["event"] for item in store.list(limit=10)] == ["NotifyStatus", "toggle"]
     assert store.list(device_id="remote:one", event_filter="toggle")[0]["component"] == "switch:0"
+
+
+def test_config_events_are_secret_scrubbed() -> None:
+    store = EventStore()
+    store.add_frame(
+        "remote:one",
+        {
+            "method": "NotifyConfig",
+            "params": {"mqtt": {"enable": True, "password": "do-not-publish"}},
+        },
+    )
+    event = store.list(limit=1)[0]
+    assert event["payload"] == {"mqtt": {"enable": True}}
+    assert "do-not-publish" not in str(event)

@@ -30,7 +30,8 @@ change.
 - RPC request and backup sizes are bounded. Event history and stored backup
   count are bounded.
 - Backups recursively remove password, passphrase, token, secret, key, private
-  key, HA1, and related fields. Diagnostics redact stored credential verifiers.
+  key, HA1, and related structured fields. Diagnostics apply the same recursive
+  scrub to device capability data and redact stored credential verifiers.
 - Known destructive RPC methods, restore, migration, backup deletion, token
   revoke/regenerate, and script overwrite require explicit confirmation.
 - Factory reset and automatic network/auth restore are not implemented.
@@ -48,9 +49,9 @@ Local Shelly passwords are stored in the Home Assistant config-entry store so
 the integration can reconnect after restart. Protect Home Assistant backups
 and `.storage` files accordingly.
 
-Downloaded Toolkit backups are secret-redacted but remain sensitive because
-they can contain network names, schedules, script source, device IDs, and
-topology.
+Downloaded Toolkit backups are structured-field-redacted but remain sensitive
+because they can contain network names, schedules, device IDs, topology, and
+script source—including credentials hard-coded inside a script.
 
 ## Recovery
 

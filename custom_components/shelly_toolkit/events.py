@@ -24,6 +24,12 @@ class EventStore:
         params = frame.get("params")
         if not isinstance(method, str) or not isinstance(params, dict):
             return []
+        if method in {"NotifyConfig", "NotifyFullConfig"}:
+            # Config notifications can carry credential-like fields. They must
+            # not enter event history or Home Assistant's event bus unchanged.
+            from .backup import scrub_secrets
+
+            params, _ = scrub_secrets(params)
         created: list[RpcEvent] = []
         if method == "NotifyEvent" and isinstance(params.get("events"), list):
             for item in params["events"]:

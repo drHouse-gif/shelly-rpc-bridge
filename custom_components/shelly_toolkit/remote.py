@@ -66,7 +66,7 @@ def normalize_credentials(raw: Iterable[Any]) -> list[dict[str, Any]]:
         legacy = item.get("token")
         if not isinstance(secret_hash, str) and isinstance(legacy, str):
             secret_hash = hash_remote_secret(legacy)
-        if not isinstance(secret_hash, str) or len(secret_hash) != 64:
+        if not isinstance(secret_hash, str) or not re.fullmatch(r"[0-9a-fA-F]{64}", secret_hash):
             continue
         bound = item.get("bound_device_id")
         result.append(
@@ -131,6 +131,8 @@ class RemoteRpcTransport:
         request_id = frame.get("id")
         if isinstance(request_id, int) and request_id in self._pending:
             future = self._pending[request_id]
+            if future.done():
+                return
             if isinstance(error := frame.get("error"), dict):
                 future.set_exception(
                     RpcResponseError(error.get("code"), str(error.get("message", error)))
@@ -218,46 +220,67 @@ class RemoteServer:
         device_id: str | None = None
         transport: RemoteRpcTransport | None = None
         try:
+            try:
+                async with asyncio.timeout(12):
+                    while True:
+                        message = await socket.receive()
+                        if message.type in {
+                            WSMsgType.CLOSE,
+                            WSMsgType.CLOSED,
+                            WSMsgType.ERROR,
+                        }:
+                            return
+                        frame = self._decode_message(message)
+                        if frame is None or frame.get("id") != identify_id:
+                            continue
+                        try:
+                            source, info = _validate_identity_response(frame)
+                        except RpcProtocolError:
+                            await socket.close(code=4002, message=b"Invalid Shelly identity")
+                            return
+                        break
+            except TimeoutError:
+                await socket.close(code=4002, message=b"Shelly identity timed out")
+                return
+
+            if len(self._transports) >= MAX_DEVICES and source not in self._transports:
+                await socket.close(code=4008, message=b"Device limit reached")
+                return
+            record = self._credentials.get(credential_id)
+            if record is None:
+                await socket.close(code=4003, message=b"Credential revoked")
+                return
+            bound = record.get("bound_device_id")
+            if isinstance(bound, str) and bound != source:
+                await socket.close(code=4003, message=b"Credential bound to another device")
+                return
+            existing_device = self._credential_devices.get(credential_id)
+            if existing_device is not None and existing_device != source:
+                await socket.close(code=4003, message=b"Credential already in use")
+                return
+            if bound is None:
+                record["bound_device_id"] = source
+                if self._bind_callback is not None:
+                    await self._bind_callback(credential_id, source)
+            device_id = source
+            old = self._transports.get(device_id)
+            if old is not None:
+                await old.async_close()
+                for old_credential, old_device in tuple(self._credential_devices.items()):
+                    if old_device == device_id:
+                        self._credential_devices.pop(old_credential, None)
+            transport = RemoteRpcTransport(socket, device_id)
+            self._transports[device_id] = transport
+            self._credential_devices[credential_id] = device_id
+            if self._connect_callback is not None:
+                await self._connect_callback(device_id, info, transport)
+            LOGGER.info("Remote Shelly %s connected", device_id)
+            await transport.async_handle_frame(frame)
+
             async for message in socket:
                 frame = self._decode_message(message)
                 if frame is None:
                     continue
-                if device_id is None:
-                    source = frame.get("src")
-                    if not isinstance(source, str) or not DEVICE_ID_RE.fullmatch(source):
-                        continue
-                    if len(self._transports) >= MAX_DEVICES and source not in self._transports:
-                        await socket.close(code=4008, message=b"Device limit reached")
-                        return
-                    record = self._credentials.get(credential_id)
-                    if record is None:
-                        await socket.close(code=4003, message=b"Credential revoked")
-                        return
-                    bound = record.get("bound_device_id")
-                    if isinstance(bound, str) and bound != source:
-                        await socket.close(code=4003, message=b"Credential bound to another device")
-                        return
-                    if bound is None:
-                        record["bound_device_id"] = source
-                        if self._bind_callback is not None:
-                            await self._bind_callback(credential_id, source)
-                    device_id = source
-                    existing_device = self._credential_devices.get(credential_id)
-                    if existing_device is not None and existing_device != device_id:
-                        await socket.close(code=4003, message=b"Credential already in use")
-                        return
-                    old = self._transports.get(device_id)
-                    if old is not None:
-                        await old.async_close()
-                    transport = RemoteRpcTransport(socket, device_id)
-                    self._transports[device_id] = transport
-                    self._credential_devices[credential_id] = device_id
-                    info = frame.get("result") if frame.get("id") == identify_id else {}
-                    if not isinstance(info, dict):
-                        info = {}
-                    if self._connect_callback is not None:
-                        await self._connect_callback(device_id, info, transport)
-                    LOGGER.info("Remote Shelly %s connected", device_id)
                 assert transport is not None
                 await transport.async_handle_frame(frame)
         finally:
@@ -294,6 +317,23 @@ class RemoteServer:
             await transport.async_close()
         self._transports.clear()
         self._credential_devices.clear()
+
+
+def _validate_identity_response(frame: dict[str, Any]) -> tuple[str, dict[str, Any]]:
+    """Validate a response to Shelly.GetDeviceInfo before binding a credential."""
+    info = frame.get("result")
+    if not isinstance(info, dict):
+        raise RpcProtocolError("Remote identity response is missing a result")
+    device_id = info.get("id")
+    generation = info.get("gen")
+    if not isinstance(device_id, str) or not DEVICE_ID_RE.fullmatch(device_id):
+        raise RpcProtocolError("Remote identity has an invalid device ID")
+    if not isinstance(generation, int) or isinstance(generation, bool) or generation < 2:
+        raise RpcProtocolError("Remote target is not a Shelly Gen2+ device")
+    source = frame.get("src")
+    if source is not None and source != device_id:
+        raise RpcProtocolError("Remote response source does not match its device ID")
+    return device_id, info
 
 
 class RemoteReceiverView(HomeAssistantView):

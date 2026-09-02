@@ -14,7 +14,7 @@ def auto_enable_custom_integrations(enable_custom_integrations):
 
 
 @pytest.fixture
-async def fake_shelly() -> FakeShellyRpcServer:
+async def fake_shelly(socket_enabled) -> FakeShellyRpcServer:
     """Run a fake Shelly RPC server on a random local port."""
     server = await FakeShellyRpcServer().start()
     try:

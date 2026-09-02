@@ -40,7 +40,10 @@ class FakeManager:
             info={"model": "SNSW-001P16EU", "mac": "AABBCCDDEEFF", "gen": 2},
             config={"mqtt": {"enable": False, "password": "must-not-export"}},
             capabilities=CapabilitySet(
-                components={"switch:0": {}, "wifi": {}},
+                components={
+                    "switch:0": {},
+                    "wifi": {"config": {"password": "capability-secret"}},
+                },
                 methods={
                     "Shelly.GetComponents",
                     "Switch.SetConfig",
@@ -113,12 +116,20 @@ def backup_fixture() -> dict:
 
 def test_secret_scrubbing_preserves_component_identifier() -> None:
     cleaned, redacted = scrub_secrets(
-        {"components": [{"key": "switch:0", "config": {"pass": "x", "api_key": "y"}}]}
+        {
+            "components": [
+                {
+                    "key": "switch:0",
+                    "config": {"pass": "x", "api_key": "y", "mqtt": {"key": "z"}},
+                }
+            ]
+        }
     )
     assert cleaned["components"][0]["key"] == "switch:0"
-    assert cleaned["components"][0]["config"] == {}
+    assert cleaned["components"][0]["config"] == {"mqtt": {}}
     assert set(redacted) == {
         "components[0].config.api_key",
+        "components[0].config.mqtt.key",
         "components[0].config.pass",
     }
 
@@ -130,7 +141,10 @@ async def test_backup_is_versioned_serializable_and_secret_free() -> None:
     validate_backup(backup)
     assert backup["toolkit_backup_version"] == 1
     assert backup["configuration"]["components"][0]["key"] == "switch:0"
-    assert "password" not in str(backup)
+    assert "must-not-export" not in str(backup)
+    assert "capability-secret" not in str(backup)
+    assert "password" not in backup["configuration"]["device"]["mqtt"]
+    assert "configuration.device.mqtt.password" in backup["redacted_paths"]
     assert "hidden" not in str(backup)
     assert repository.values[0]["id"] == backup["id"]
 

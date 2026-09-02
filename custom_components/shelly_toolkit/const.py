@@ -8,7 +8,7 @@ from homeassistant.const import Platform
 
 DOMAIN: Final = "shelly_toolkit"
 NAME: Final = "Shelly Toolkit for Home Assistant"
-VERSION: Final = "0.4.0"
+VERSION: Final = "0.4.1"
 
 CONF_LOCAL_DEVICES: Final = "local_devices"
 CONF_REMOTE_CREDENTIALS: Final = "remote_credentials"

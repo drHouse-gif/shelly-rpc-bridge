@@ -255,7 +255,7 @@ class ShellyToolkitPanel extends HTMLElement {
   render_backups() {
     const rows = this.backups.map((item) => `<tr><td>${escapeHtml(item.id)}</td><td>${escapeHtml(item.device?.name || item.device?.model || "Unknown")}</td><td>${escapeHtml(item.created_at || "")}</td><td><button class="secondary" data-download="${escapeHtml(item.id)}">Download</button> <button class="danger" data-delete="${escapeHtml(item.id)}">Delete</button></td></tr>`).join("");
     return `
-      ${this.toolForm("Create backup", "backup-form", "Back up device", `<label>Device<select name="device_id">${this.deviceOptions()}</select></label>`, "Secrets are redacted and never exported in plain text.")}
+      ${this.toolForm("Create backup", "backup-form", "Back up device", `<label>Device<select name="device_id">${this.deviceOptions()}</select></label>`, "Structured secret fields are redacted. Script source is preserved and can contain hard-coded sensitive values.")}
       <section class="card"><h2>Stored backups</h2><div class="table"><table><thead><tr><th>ID</th><th>Source</th><th>Created</th><th>Actions</th></tr></thead><tbody>${rows || '<tr><td colspan="4">No backups.</td></tr>'}</tbody></table></div></section>
       <section class="card"><h2>Restore with preview</h2><form id="restore-form" class="form-grid"><label>Backup<select name="backup_id">${this.backups.map((item) => `<option value="${escapeHtml(item.id)}">${escapeHtml(item.id)} · ${escapeHtml(item.device?.name || "device")}</option>`).join("")}</select></label><label>Target<select name="target_id">${this.deviceOptions()}</select></label><label>Mode<select name="mode"><option value="smart">Smart migration</option><option value="exact">Exact clone</option></select></label><button type="submit">Preview restore</button><button type="button" id="restore-apply" class="danger">Apply last preview</button></form></section>${this.outputCard("Backup / restore report")}`;
   }
@@ -347,7 +347,7 @@ class ShellyToolkitPanel extends HTMLElement {
   }
 
   render_settings() {
-    return `<section class="card"><h2>Settings and security boundaries</h2><ul><li>The panel and every backend command require a Home Assistant administrator.</li><li>Remote credentials are revocable, one-device-bound verifiers; secrets are never logged or stored in clear text.</li><li>RPC Explorer is intentionally powerful. Destructive methods need explicit confirmation.</li><li>Backups redact password, token, secret, credential, key, and certificate fields.</li><li>Factory reset and automatic network/auth restoration are not implemented.</li></ul><p>Version 0.4.0 · Shelly Gen2+ capability-based support.</p></section>`;
+    return `<section class="card"><h2>Settings and security boundaries</h2><ul><li>The panel and every backend command require a Home Assistant administrator.</li><li>Remote credentials are revocable, one-device-bound verifiers; secrets are never logged or stored in clear text.</li><li>RPC Explorer is intentionally powerful. Destructive methods need explicit confirmation.</li><li>Backups redact structured password, token, secret, credential, and private-key fields. Script source is preserved and may itself contain sensitive values.</li><li>Factory reset and automatic network/auth restoration are not implemented.</li></ul><p>Version 0.4.1 · Shelly Gen2+ capability-based support.</p></section>`;
   }
 
   bindSimpleForm(id, command, build) {
