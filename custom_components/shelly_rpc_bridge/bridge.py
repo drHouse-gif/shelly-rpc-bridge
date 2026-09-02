@@ -10,7 +10,7 @@ import re
 import secrets
 import time
 from collections import defaultdict
-from collections.abc import Callable
+from collections.abc import Callable, Iterable
 from typing import Any
 
 from aiohttp import WSMsgType, web
@@ -62,17 +62,26 @@ def _infer_device_id(frame: dict[str, Any]) -> str | None:
 
 
 class BridgeServer:
-    """Dispatch inbound Shelly WebSockets to the matching config entry."""
+    """Dispatch inbound Shelly WebSockets by generated device token."""
 
     def __init__(self) -> None:
         self._hubs: dict[str, BridgeHub] = {}
 
-    def register(self, token: str, hub: BridgeHub) -> None:
-        self._hubs[token] = hub
+    async def async_set_tokens(self, hub: BridgeHub, tokens: Iterable[str]) -> None:
+        """Replace all valid tokens for one hub and revoke removed tokens."""
+        valid = {token for token in tokens if token}
+        for token, mapped_hub in tuple(self._hubs.items()):
+            if mapped_hub is hub and token not in valid:
+                self._hubs.pop(token, None)
+        for token in valid:
+            self._hubs[token] = hub
+        await hub.async_set_valid_tokens(valid)
 
-    def unregister(self, token: str, hub: BridgeHub) -> None:
-        if self._hubs.get(token) is hub:
-            self._hubs.pop(token, None)
+    async def async_unregister_hub(self, hub: BridgeHub) -> None:
+        for token, mapped_hub in tuple(self._hubs.items()):
+            if mapped_hub is hub:
+                self._hubs.pop(token, None)
+        await hub.async_set_valid_tokens(set())
 
     def hub_for_token(self, token: str) -> BridgeHub | None:
         if not token:
@@ -101,19 +110,20 @@ class BridgeReceiver(HomeAssistantView):
 
         websocket = web.WebSocketResponse(heartbeat=20, max_msg_size=1_048_576)
         await websocket.prepare(request)
-        await hub.async_handle_device(websocket)
+        await hub.async_handle_device(websocket, token)
         return websocket
 
 
 class BridgeHub:
     """Maintain direct Shelly WebSocket sessions and remote device models."""
 
-    def __init__(self, hass: HomeAssistant, token: str) -> None:
+    def __init__(self, hass: HomeAssistant) -> None:
         self.hass = hass
-        self.token = token
         self.devices: dict[str, RemoteDevice] = {}
         self.connected = False
+        self._valid_tokens: set[str] = set()
         self._device_sockets: dict[str, web.WebSocketResponse] = {}
+        self._device_auth_tokens: dict[str, str] = {}
         self._request_id = secrets.randbelow(1_000_000) + 1
         self._pending: dict[tuple[str, int], asyncio.Future[dict[str, Any]]] = {}
         self._component_listeners: set[Callable[[RemoteDevice], None]] = set()
@@ -125,9 +135,7 @@ class BridgeHub:
 
     async def async_stop(self) -> None:
         self.connected = False
-        for websocket in tuple(self._device_sockets.values()):
-            await websocket.close(code=1001, message=b"Integration unloaded")
-        self._device_sockets.clear()
+        await self.async_set_valid_tokens(set())
         for task in self._bootstrap_tasks.values():
             task.cancel()
         self._bootstrap_tasks.clear()
@@ -135,6 +143,16 @@ class BridgeHub:
             if not future.done():
                 future.set_exception(BridgeUnavailable("Integration unloaded"))
         self._pending.clear()
+
+    async def async_set_valid_tokens(self, tokens: set[str]) -> None:
+        """Update accepted tokens and immediately disconnect revoked sessions."""
+        self._valid_tokens = set(tokens)
+        for device_id, auth_token in tuple(self._device_auth_tokens.items()):
+            if auth_token in self._valid_tokens:
+                continue
+            websocket = self._device_sockets.get(device_id)
+            if websocket is not None and not websocket.closed:
+                await websocket.close(code=4003, message=b"Bridge token revoked")
 
     def async_add_component_listener(
         self, callback: Callable[[RemoteDevice], None]
@@ -167,7 +185,13 @@ class BridgeHub:
         self._request_id += 1
         return self._request_id
 
-    async def async_handle_device(self, websocket: web.WebSocketResponse) -> None:
+    async def async_handle_device(
+        self, websocket: web.WebSocketResponse, auth_token: str
+    ) -> None:
+        if auth_token not in self._valid_tokens:
+            await websocket.close(code=4003, message=b"Bridge token revoked")
+            return
+
         device_id: str | None = None
         identify_id = self._next_request_id()
         await websocket.send_json(
@@ -176,6 +200,9 @@ class BridgeHub:
 
         try:
             async for message in websocket:
+                if auth_token not in self._valid_tokens:
+                    await websocket.close(code=4003, message=b"Bridge token revoked")
+                    break
                 if message.type == WSMsgType.TEXT:
                     try:
                         frame = json.loads(message.data)
@@ -207,6 +234,7 @@ class BridgeHub:
                     if old_socket is not None and old_socket is not websocket:
                         await old_socket.close(code=4001, message=b"Replaced by reconnect")
                     self._device_sockets[device_id] = websocket
+                    self._device_auth_tokens[device_id] = auth_token
                     device.online = True
                     device.last_seen = time.time()
                     if frame.get("id") == identify_id and isinstance(frame.get("result"), dict):
@@ -224,6 +252,7 @@ class BridgeHub:
         finally:
             if device_id is not None and self._device_sockets.get(device_id) is websocket:
                 self._device_sockets.pop(device_id, None)
+                self._device_auth_tokens.pop(device_id, None)
                 device = self.devices[device_id]
                 device.online = False
                 device.last_seen = time.time()

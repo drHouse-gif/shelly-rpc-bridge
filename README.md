@@ -2,41 +2,37 @@
 
 Direct Shelly Gen2+ outbound WebSocket integration for Home Assistant.
 
-## Version 0.2.0 — no external relay
+## Version 0.3.0 — multi-token direct bridge
 
-The bridge now runs inside Home Assistant. You do **not** need Docker, a VPS, Caddy, a separate relay service, port forwarding, or manually generated credentials.
+No Docker, VPS, Caddy or external relay is required. The bridge runs inside Home Assistant.
 
-Flow:
+### Multi-token management
 
-```text
-Shelly Gen2+  ── outbound WebSocket ──>  Home Assistant / Shelly RPC Bridge
-```
+Open **Settings → Devices & services → Shelly RPC Bridge → Configure**. You can:
 
-The Shelly can use the best URL Home Assistant exposes. When Home Assistant has a secure external or Home Assistant Cloud URL, the generated address is `wss://...`. For same-LAN testing, Home Assistant can also generate a local `ws://...` address.
+- **Generate token** — create a named token and a ready-to-paste WebSocket URL.
+- **View tokens and URLs** — recover any generated URL later.
+- **Revoke token** — immediately invalidate one token without affecting the others.
 
-## Install with HACS
+Use one token per device or per site. For larger installations, one-token-per-device gives the best isolation because a leaked or retired token can be revoked without touching every other Shelly.
 
-1. In HACS open **Integrations → ⋮ → Custom repositories**.
-2. Add `https://github.com/drHouse-gif/shelly-rpc-bridge` as category **Integration**.
-3. Open **Shelly RPC Bridge** and download the latest version.
-4. Restart Home Assistant.
-5. Go to **Settings → Devices & services → Add integration → Shelly RPC Bridge**.
-6. Press **Submit** to generate the private Shelly WebSocket URL.
-7. Copy the generated URL and press **Submit** again to finish the Home Assistant setup.
-8. Open the Shelly web UI → **Settings → Connectivity → Outbound WebSocket**.
-9. Enable Outbound WebSocket, paste the generated URL as the server URL, save, and connect.
+Existing 0.2.x single-token installations are migrated automatically to a token named **Primary**.
 
-The device should then appear in Home Assistant automatically. Supported component families include switches, CB outputs, lights/RGB/RGBW, covers, numeric sensors, and binary sensors exposed by the existing integration platforms.
+### Install with HACS
 
-## Security
+1. Add `https://github.com/drHouse-gif/shelly-rpc-bridge` to HACS as a custom **Integration** repository.
+2. Download/update Shelly RPC Bridge and restart Home Assistant.
+3. Add **Shelly RPC Bridge** from Settings → Devices & services if it is not already configured.
+4. Open **Configure → Generate token** whenever you need another device URL.
+5. Paste the generated URL into Shelly → Settings → Connectivity → Outbound WebSocket.
 
-Each installation generates a random private device token. Connections without the token are rejected. Destructive or connectivity-changing RPC calls such as factory reset, firmware update, Wi-Fi/Ethernet/MQTT/WebSocket reconfiguration, authentication changes, scripts, schedules, and webhooks are blocked by the bridge.
+### Security
 
-Treat the generated WebSocket URL as a secret because it contains the device token.
+Generated URLs contain private bearer-like device tokens. Treat them as secrets. Destructive and connectivity-changing RPC methods remain blocked. Revoking a token disconnects active devices using that token.
 
-## Development status
+### Development status
 
-`0.2.0` is the first direct-connection test release. Test it on non-critical devices before production use.
+`0.3.0` is a test release. Use non-critical devices while validating behavior.
 
 ## License
 

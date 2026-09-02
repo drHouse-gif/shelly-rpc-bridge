@@ -3,19 +3,56 @@
   "config": {
     "step": {
       "user": {
-        "title": "Generate a Shelly connection",
-        "description": "No relay, Docker, VPS, port mapping, or manual token is required. Press Submit to generate a private outbound WebSocket address for this Home Assistant instance."
+        "title": "Create Shelly RPC Bridge",
+        "description": "Press Submit to create the hub and generate its first private Shelly token."
       },
       "generated": {
-        "title": "Your Shelly WebSocket address",
-        "description": "Copy this exact address:\n\n`{shelly_url}`\n\nThen press Submit to finish adding the integration. In the Shelly web UI, open Settings → Connectivity → Outbound WebSocket, enable it, paste the address as the server URL, save, and connect."
+        "title": "First Shelly WebSocket URL",
+        "description": "Copy this URL:\n\n`{shelly_url}`\n\nPaste it into Shelly → Settings → Connectivity → Outbound WebSocket. Press Submit to finish."
       }
     },
     "error": {
-      "no_url": "Home Assistant could not determine a reachable URL. Configure an Internal or External URL in Home Assistant network settings and try again."
+      "no_url": "Home Assistant could not determine a reachable URL. Configure an Internal or External URL in Network settings."
     },
     "abort": {
       "already_configured": "Shelly RPC Bridge is already configured."
+    }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "title": "Shelly token management",
+        "menu_options": {
+          "generate_token": "Generate token",
+          "view_tokens": "View tokens and URLs",
+          "revoke_token": "Revoke token"
+        }
+      },
+      "generate_token": {
+        "title": "Generate a new token",
+        "description": "Create a separate token for one device, site or device group.",
+        "data": {"token_name": "Token name"},
+        "data_description": {"token_name": "Example: Office Pro 2PM or Site 14"}
+      },
+      "token_created": {
+        "title": "Token created",
+        "description": "Copy this URL now or view it again later from Configure → View tokens and URLs:\n\n`{shelly_url}`"
+      },
+      "view_tokens": {
+        "title": "Tokens and WebSocket URLs",
+        "description": "{token_list}"
+      },
+      "revoke_token": {
+        "title": "Revoke token",
+        "description": "Revoking a token immediately disconnects devices currently using it.",
+        "data": {"token_id": "Token"}
+      }
+    },
+    "error": {
+      "no_url": "Home Assistant could not determine a reachable URL."
+    },
+    "abort": {
+      "no_tokens": "There are no tokens to revoke."
     }
   }
 }
