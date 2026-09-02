@@ -30,7 +30,7 @@ class EventStore:
                 if not isinstance(item, dict):
                     continue
                 record = RpcEvent(
-                    timestamp=float(item.get("ts", params.get("ts", time.time()))),
+                    timestamp=_timestamp(item.get("ts", params.get("ts"))),
                     device_id=device_id,
                     component=item.get("component")
                     if isinstance(item.get("component"), str)
@@ -42,7 +42,7 @@ class EventStore:
                 created.append(record)
         else:
             record = RpcEvent(
-                timestamp=float(params.get("ts", time.time())),
+                timestamp=_timestamp(params.get("ts")),
                 device_id=device_id,
                 component=None,
                 event=method,
@@ -89,3 +89,8 @@ class EventStore:
         """Subscribe to new records."""
         self._listeners.add(listener)
         return lambda: self._listeners.discard(listener)
+
+
+def _timestamp(value: Any) -> float:
+    """Normalize Shelly timestamps without accepting null/non-numeric values."""
+    return float(value) if isinstance(value, (int, float)) else time.time()
